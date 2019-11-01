@@ -38,9 +38,9 @@ import androidx.annotation.IntRange;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RestrictTo;
+import androidx.core.graphics.ColorUtils;
 import com.google.android.material.shape.ShapeAppearanceModel;
 import com.google.android.material.shape.ShapeAppearancePathProvider;
-import androidx.core.graphics.ColorUtils;
 
 /**
  * A Drawable that draws borders for {@link FloatingActionButton}
@@ -59,11 +59,13 @@ class BorderDrawable extends Drawable {
 
   private final ShapeAppearancePathProvider pathProvider = new ShapeAppearancePathProvider();
 
-  private final Paint paint;
+  @NonNull private final Paint paint;
   private final Path shapePath = new Path();
   private final Rect rect = new Rect();
   private final RectF rectF = new RectF();
-
+  private final RectF boundsRectF = new RectF();
+  private final BorderState state = new BorderState();
+  
   @Dimension float borderWidth;
   @ColorInt private int topOuterStrokeColor;
   @ColorInt private int topInnerStrokeColor;
@@ -118,7 +120,7 @@ class BorderDrawable extends Drawable {
   }
 
   @Override
-  public void draw(Canvas canvas) {
+  public void draw(@NonNull Canvas canvas) {
     if (invalidateShader) {
       paint.setShader(createGradientShader());
       invalidateShader = false;
@@ -130,9 +132,10 @@ class BorderDrawable extends Drawable {
 
     // We need to inset the oval bounds by half the border width. This is because stroke draws
     // the center of the border on the dimension. Whereas we want the stroke on the inside.
-    float cornerSize = shapeAppearanceModel.getTopLeftCorner().getCornerSize();
+    float cornerSize =
+        shapeAppearanceModel.getTopLeftCornerSize().getCornerSize(getBoundsAsRectF());
     float radius = Math.min(cornerSize, rectF.width() / 2f);
-    if (shapeAppearanceModel.isRoundRect()) {
+    if (shapeAppearanceModel.isRoundRect(getBoundsAsRectF())) {
       rectF.inset(halfBorderWidth, halfBorderWidth);
       canvas.drawRoundRect(rectF, radius, radius, paint);
     }
@@ -141,8 +144,8 @@ class BorderDrawable extends Drawable {
   @TargetApi(VERSION_CODES.LOLLIPOP)
   @Override
   public void getOutline(@NonNull Outline outline) {
-    if (shapeAppearanceModel.isRoundRect()) {
-      float radius = shapeAppearanceModel.getTopLeftCorner().getCornerSize();
+    if (shapeAppearanceModel.isRoundRect(getBoundsAsRectF())) {
+      float radius = shapeAppearanceModel.getTopLeftCornerSize().getCornerSize(getBoundsAsRectF());
       outline.setRoundRect(getBounds(), radius);
       return;
     }
@@ -156,12 +159,18 @@ class BorderDrawable extends Drawable {
   }
 
   @Override
-  public boolean getPadding(Rect padding) {
-    if (shapeAppearanceModel.isRoundRect()) {
+  public boolean getPadding(@NonNull Rect padding) {
+    if (shapeAppearanceModel.isRoundRect(getBoundsAsRectF())) {
       final int borderWidth = Math.round(this.borderWidth);
       padding.set(borderWidth, borderWidth, borderWidth, borderWidth);
     }
     return true;
+  }
+
+  @NonNull
+  protected RectF getBoundsAsRectF() {
+    boundsRectF.set(getBounds());
+    return boundsRectF;
   }
 
   public ShapeAppearanceModel getShapeAppearanceModel() {
@@ -209,6 +218,7 @@ class BorderDrawable extends Drawable {
     return invalidateShader;
   }
 
+  @NonNull
   private Shader createGradientShader() {
     final Rect rect = this.rect;
     copyBounds(rect);
@@ -237,5 +247,29 @@ class BorderDrawable extends Drawable {
 
     return new LinearGradient(
         0, rect.top, 0, rect.bottom, colors, positions, Shader.TileMode.CLAMP);
+  }
+
+  @Nullable
+  @Override
+  public ConstantState getConstantState() {
+    return state;
+  }
+
+  /**
+   * Dummy implementation of constant state. This drawable doesn't have shared state. Implementing
+   * so that calls to getConstantState().newDrawable() don't crash on L and M.
+   */
+  private class BorderState extends ConstantState {
+
+    @NonNull
+    @Override
+    public Drawable newDrawable() {
+      return BorderDrawable.this;
+    }
+
+    @Override
+    public int getChangingConfigurations() {
+      return 0;
+    }
   }
 }

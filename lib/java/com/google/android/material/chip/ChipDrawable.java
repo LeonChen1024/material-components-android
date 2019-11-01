@@ -21,8 +21,6 @@ import com.google.android.material.R;
 import android.annotation.TargetApi;
 import android.content.Context;
 import android.content.res.ColorStateList;
-import android.content.res.Resources;
-import android.content.res.Resources.NotFoundException;
 import android.content.res.TypedArray;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -41,6 +39,9 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.Drawable.Callback;
+import android.graphics.drawable.RippleDrawable;
+import android.graphics.drawable.ShapeDrawable;
+import android.graphics.drawable.shapes.OvalShape;
 import android.os.Build.VERSION_CODES;
 import androidx.annotation.AnimatorRes;
 import androidx.annotation.AttrRes;
@@ -55,6 +56,16 @@ import androidx.annotation.Px;
 import androidx.annotation.StringRes;
 import androidx.annotation.StyleRes;
 import androidx.annotation.XmlRes;
+import androidx.core.graphics.ColorUtils;
+import androidx.core.graphics.drawable.DrawableCompat;
+import androidx.core.graphics.drawable.TintAwareDrawable;
+import androidx.core.text.BidiFormatter;
+import androidx.core.view.ViewCompat;
+import androidx.appcompat.content.res.AppCompatResources;
+import android.text.TextUtils;
+import android.text.TextUtils.TruncateAt;
+import android.util.AttributeSet;
+import android.view.View;
 import com.google.android.material.animation.MotionSpec;
 import com.google.android.material.canvas.CanvasCompat;
 import com.google.android.material.color.MaterialColors;
@@ -67,21 +78,8 @@ import com.google.android.material.resources.TextAppearance;
 import com.google.android.material.ripple.RippleUtils;
 import com.google.android.material.shape.MaterialShapeDrawable;
 import com.google.android.material.shape.ShapeAppearanceModel;
-import androidx.core.graphics.ColorUtils;
-import androidx.core.graphics.drawable.DrawableCompat;
-import androidx.core.graphics.drawable.TintAwareDrawable;
-import androidx.core.text.BidiFormatter;
-import androidx.appcompat.content.res.AppCompatResources;
-import android.text.TextUtils;
-import android.text.TextUtils.TruncateAt;
-import android.util.AttributeSet;
-import android.util.Xml;
-import android.view.View;
-import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.util.Arrays;
-import org.xmlpull.v1.XmlPullParser;
-import org.xmlpull.v1.XmlPullParserException;
 
 /**
  * ChipDrawable contains all the layout and draw logic for {@link Chip}.
@@ -164,17 +162,8 @@ public class ChipDrawable extends MaterialShapeDrawable
   private static final boolean DEBUG = false;
   private static final int[] DEFAULT_STATE = new int[] {android.R.attr.state_enabled};
   private static final String NAMESPACE_APP = "http://schemas.android.com/apk/res-auto";
-  private static final int[][] states =
-      new int[][] {
-        new int[] {
-          android.R.attr.state_enabled, android.R.attr.state_selected,
-        },
-        new int[] {
-          android.R.attr.state_enabled, android.R.attr.state_checked,
-        },
-        new int[] {android.R.attr.state_enabled},
-        new int[] {} // default
-      };
+
+  private static final ShapeDrawable closeIconRippleMask = new ShapeDrawable(new OvalShape());
 
   // Visuals
   @Nullable private ColorStateList chipSurfaceColor;
@@ -197,6 +186,7 @@ public class ChipDrawable extends MaterialShapeDrawable
   // Close icon
   private boolean closeIconVisible;
   @Nullable private Drawable closeIcon;
+  @Nullable private Drawable closeIconRipple;
   @Nullable private ColorStateList closeIconTint;
   private float closeIconSize;
   @Nullable private CharSequence closeIconContentDescription;
@@ -242,17 +232,18 @@ public class ChipDrawable extends MaterialShapeDrawable
 
   // Chip ends here.
 
-  private final Context context;
+  @NonNull private final Context context;
   private final Paint chipPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
   @Nullable private final Paint debugPaint;
   private final FontMetrics fontMetrics = new FontMetrics();
   private final RectF rectF = new RectF();
   private final PointF pointF = new PointF();
   private final Path shapePath = new Path();
-  private final TextDrawableHelper textDrawableHelper;
+  @NonNull private final TextDrawableHelper textDrawableHelper;
 
   @ColorInt private int currentChipSurfaceColor;
   @ColorInt private int currentChipBackgroundColor;
+  @ColorInt private int currentCompositeSurfaceBackgroundColor;
   @ColorInt private int currentChipStrokeColor;
   @ColorInt private int currentCompatRippleColor;
   @ColorInt private int currentTextColor;
@@ -267,15 +258,19 @@ public class ChipDrawable extends MaterialShapeDrawable
   private int[] closeIconStateSet;
   private boolean useCompatRipple;
   @Nullable private ColorStateList compatRippleColor;
-  private WeakReference<Delegate> delegate = new WeakReference<>(null);
+  @NonNull private WeakReference<Delegate> delegate = new WeakReference<>(null);
   private TruncateAt truncateAt;
   private boolean shouldDrawText;
   private int maxWidth;
   private boolean isShapeThemingEnabled;
 
   /** Returns a ChipDrawable from the given attributes. */
+  @NonNull
   public static ChipDrawable createFromAttributes(
-      Context context, AttributeSet attrs, @AttrRes int defStyleAttr, @StyleRes int defStyleRes) {
+      @NonNull Context context,
+      @Nullable AttributeSet attrs,
+      @AttrRes int defStyleAttr,
+      @StyleRes int defStyleRes) {
     ChipDrawable chip = new ChipDrawable(context, attrs, defStyleAttr, defStyleRes);
     chip.loadFromAttributes(attrs, defStyleAttr, defStyleRes);
     return chip;
@@ -293,44 +288,26 @@ public class ChipDrawable extends MaterialShapeDrawable
    *     app:chipIcon="@drawable/custom_icon"/>
    * }</pre>
    */
-  public static ChipDrawable createFromResource(Context context, @XmlRes int id) {
-    try {
-      XmlPullParser parser = context.getResources().getXml(id);
-
-      int type;
-      do {
-        type = parser.next();
-      } while (type != XmlPullParser.START_TAG && type != XmlPullParser.END_DOCUMENT);
-      if (type != XmlPullParser.START_TAG) {
-        throw new XmlPullParserException("No start tag found");
-      }
-
-      if (!TextUtils.equals(parser.getName(), "chip")) {
-        throw new XmlPullParserException("Must have a <chip> start tag");
-      }
-
-      AttributeSet attrs = Xml.asAttributeSet(parser);
-      @StyleRes int style = attrs.getStyleAttribute();
-      if (style == 0) {
-        style = R.style.Widget_MaterialComponents_Chip_Entry;
-      }
-
-      return createFromAttributes(context, attrs, R.attr.chipStandaloneStyle, style);
-    } catch (XmlPullParserException | IOException e) {
-      Resources.NotFoundException exception =
-          new NotFoundException("Can't load chip resource ID #0x" + Integer.toHexString(id));
-      exception.initCause(e);
-      throw exception;
+  @NonNull
+  public static ChipDrawable createFromResource(@NonNull Context context, @XmlRes int id) {
+    AttributeSet attrs = DrawableUtils.parseDrawableXml(context, id, "chip");
+    @StyleRes int style = attrs.getStyleAttribute();
+    if (style == 0) {
+      style = R.style.Widget_MaterialComponents_Chip_Entry;
     }
+    return createFromAttributes(context, attrs, R.attr.chipStandaloneStyle, style);
   }
 
   private ChipDrawable(
-      Context context, AttributeSet attrs, @AttrRes int defStyleAttr, @StyleRes int defStyleRes) {
+      @NonNull Context context,
+      AttributeSet attrs,
+      @AttrRes int defStyleAttr,
+      @StyleRes int defStyleRes) {
     super(context, attrs, defStyleAttr, defStyleRes);
     initializeElevationOverlay(context);
 
     this.context = context;
-    textDrawableHelper = new TextDrawableHelper();
+    textDrawableHelper = new TextDrawableHelper(/* delegate= */ this);
 
     text = "";
 
@@ -343,10 +320,15 @@ public class ChipDrawable extends MaterialShapeDrawable
     setState(DEFAULT_STATE);
     setCloseIconState(DEFAULT_STATE);
     shouldDrawText = true;
+
+    if (RippleUtils.USE_FRAMEWORK_RIPPLE) {
+      //noinspection NewApi
+      closeIconRippleMask.setTint(Color.WHITE);
+    }
   }
 
   private void loadFromAttributes(
-      AttributeSet attrs, @AttrRes int defStyleAttr, @StyleRes int defStyleRes) {
+      @Nullable AttributeSet attrs, @AttrRes int defStyleAttr, @StyleRes int defStyleRes) {
     TypedArray a =
         ThemeEnforcement.obtainStyledAttributes(
             context, attrs, R.styleable.Chip, defStyleAttr, defStyleRes);
@@ -473,7 +455,7 @@ public class ChipDrawable extends MaterialShapeDrawable
    * Returns the chip's ChipDrawable-absolute bounds (top-left is <code>
    * [ChipDrawable.getBounds().left, ChipDrawable.getBounds().top]</code>).
    */
-  public void getChipTouchBounds(RectF bounds) {
+  public void getChipTouchBounds(@NonNull RectF bounds) {
     calculateChipTouchBounds(getBounds(), bounds);
   }
 
@@ -481,7 +463,7 @@ public class ChipDrawable extends MaterialShapeDrawable
    * Returns the close icon's ChipDrawable-absolute bounds (top-left is <code>
    * [ChipDrawable.getBounds().left, ChipDrawable.getBounds().top]</code>).
    */
-  public void getCloseIconTouchBounds(RectF bounds) {
+  public void getCloseIconTouchBounds(@NonNull RectF bounds) {
     calculateCloseIconTouchBounds(getBounds(), bounds);
   }
 
@@ -600,7 +582,7 @@ public class ChipDrawable extends MaterialShapeDrawable
     }
   }
 
-  private void drawChipSurface(@NonNull Canvas canvas, Rect bounds) {
+  private void drawChipSurface(@NonNull Canvas canvas, @NonNull Rect bounds) {
     if (!isShapeThemingEnabled) {
       chipPaint.setColor(currentChipSurfaceColor);
       chipPaint.setStyle(Style.FILL);
@@ -609,7 +591,7 @@ public class ChipDrawable extends MaterialShapeDrawable
     }
   }
 
-  private void drawChipBackground(@NonNull Canvas canvas, Rect bounds) {
+  private void drawChipBackground(@NonNull Canvas canvas, @NonNull Rect bounds) {
     if (!isShapeThemingEnabled) {
       chipPaint.setColor(currentChipBackgroundColor);
       chipPaint.setStyle(Style.FILL);
@@ -623,7 +605,7 @@ public class ChipDrawable extends MaterialShapeDrawable
    * Draws the chip stroke. Draw the stroke <code>chipStrokeWidth / 2f</code> away from the edges so
    * that the stroke perfectly fills the bounds of the chip.
    */
-  private void drawChipStroke(@NonNull Canvas canvas, Rect bounds) {
+  private void drawChipStroke(@NonNull Canvas canvas, @NonNull Rect bounds) {
     if (chipStrokeWidth > 0 && !isShapeThemingEnabled) {
       chipPaint.setColor(currentChipStrokeColor);
       chipPaint.setStyle(Style.STROKE);
@@ -642,19 +624,19 @@ public class ChipDrawable extends MaterialShapeDrawable
     }
   }
 
-  private void drawCompatRipple(@NonNull Canvas canvas, Rect bounds) {
+  private void drawCompatRipple(@NonNull Canvas canvas, @NonNull Rect bounds) {
     chipPaint.setColor(currentCompatRippleColor);
     chipPaint.setStyle(Style.FILL);
     rectF.set(bounds);
     if (!isShapeThemingEnabled) {
       canvas.drawRoundRect(rectF, getChipCornerRadius(), getChipCornerRadius(), chipPaint);
     } else {
-      getPathForSize(bounds, shapePath);
+      calculatePathForSize(new RectF(bounds), shapePath);
       super.drawShape(canvas, chipPaint, shapePath, getBoundsAsRectF());
     }
   }
 
-  private void drawChipIcon(@NonNull Canvas canvas, Rect bounds) {
+  private void drawChipIcon(@NonNull Canvas canvas, @NonNull Rect bounds) {
     if (showsChipIcon()) {
       calculateChipIconBounds(bounds, rectF);
       float tx = rectF.left;
@@ -669,7 +651,7 @@ public class ChipDrawable extends MaterialShapeDrawable
     }
   }
 
-  private void drawCheckedIcon(@NonNull Canvas canvas, Rect bounds) {
+  private void drawCheckedIcon(@NonNull Canvas canvas, @NonNull Rect bounds) {
     if (showsCheckedIcon()) {
       calculateChipIconBounds(bounds, rectF);
       float tx = rectF.left;
@@ -685,7 +667,7 @@ public class ChipDrawable extends MaterialShapeDrawable
   }
 
   /** Draws the chip text, which should appear centered vertically in the chip. */
-  private void drawText(@NonNull Canvas canvas, Rect bounds) {
+  private void drawText(@NonNull Canvas canvas, @NonNull Rect bounds) {
     if (text != null) {
       Align align = calculateTextOriginAndAlignment(bounds, pointF);
       // If bounds are smaller than intrinsic size. Ellipsize or clip the text depending on
@@ -720,7 +702,7 @@ public class ChipDrawable extends MaterialShapeDrawable
     }
   }
 
-  private void drawCloseIcon(@NonNull Canvas canvas, Rect bounds) {
+  private void drawCloseIcon(@NonNull Canvas canvas, @NonNull Rect bounds) {
     if (showsCloseIcon()) {
       calculateCloseIconBounds(bounds, rectF);
       float tx = rectF.left;
@@ -729,13 +711,20 @@ public class ChipDrawable extends MaterialShapeDrawable
       canvas.translate(tx, ty);
 
       closeIcon.setBounds(0, 0, (int) rectF.width(), (int) rectF.height());
-      closeIcon.draw(canvas);
+
+      if (RippleUtils.USE_FRAMEWORK_RIPPLE) {
+        closeIconRipple.setBounds(closeIcon.getBounds());
+        closeIconRipple.jumpToCurrentState();
+        closeIconRipple.draw(canvas);
+      } else {
+        closeIcon.draw(canvas);
+      }
 
       canvas.translate(-tx, -ty);
     }
   }
 
-  private void drawDebug(@NonNull Canvas canvas, Rect bounds) {
+  private void drawDebug(@NonNull Canvas canvas, @NonNull Rect bounds) {
     if (debugPaint != null) {
       debugPaint.setColor(ColorUtils.setAlphaComponent(Color.BLACK, 255 / 2));
 
@@ -776,13 +765,13 @@ public class ChipDrawable extends MaterialShapeDrawable
    * Calculates the chip icon's ChipDrawable-absolute bounds (top-left is <code>
    * [ChipDrawable.getBounds().left, ChipDrawable.getBounds().top]</code>).
    */
-  private void calculateChipIconBounds(Rect bounds, RectF outBounds) {
+  private void calculateChipIconBounds(@NonNull Rect bounds, @NonNull RectF outBounds) {
     outBounds.setEmpty();
 
     if (showsChipIcon() || showsCheckedIcon()) {
       float offsetFromStart = chipStartPadding + iconStartPadding;
 
-      if (DrawableCompat.getLayoutDirection(this) == View.LAYOUT_DIRECTION_LTR) {
+      if (DrawableCompat.getLayoutDirection(this) == ViewCompat.LAYOUT_DIRECTION_LTR) {
         outBounds.left = bounds.left + offsetFromStart;
         outBounds.right = outBounds.left + chipIconSize;
       } else {
@@ -796,14 +785,15 @@ public class ChipDrawable extends MaterialShapeDrawable
   }
 
   /** Calculates the chip text's origin and alignment based on the ChipDrawable-absolute bounds. */
-  Align calculateTextOriginAndAlignment(Rect bounds, PointF pointF) {
+  @NonNull
+  Align calculateTextOriginAndAlignment(@NonNull Rect bounds, @NonNull PointF pointF) {
     pointF.set(0, 0);
     Align align = Align.LEFT;
 
     if (text != null) {
       float offsetFromStart = chipStartPadding + calculateChipIconWidth() + textStartPadding;
 
-      if (DrawableCompat.getLayoutDirection(this) == View.LAYOUT_DIRECTION_LTR) {
+      if (DrawableCompat.getLayoutDirection(this) == ViewCompat.LAYOUT_DIRECTION_LTR) {
         pointF.x = bounds.left + offsetFromStart;
         align = Align.LEFT;
       } else {
@@ -838,14 +828,14 @@ public class ChipDrawable extends MaterialShapeDrawable
    * Calculates the chip text's ChipDrawable-absolute bounds (top-left is <code>
    * [ChipDrawable.getBounds().left, ChipDrawable.getBounds().top]</code>).
    */
-  private void calculateTextBounds(Rect bounds, RectF outBounds) {
+  private void calculateTextBounds(@NonNull Rect bounds, @NonNull RectF outBounds) {
     outBounds.setEmpty();
 
     if (text != null) {
       float offsetFromStart = chipStartPadding + calculateChipIconWidth() + textStartPadding;
       float offsetFromEnd = chipEndPadding + calculateCloseIconWidth() + textEndPadding;
 
-      if (DrawableCompat.getLayoutDirection(this) == View.LAYOUT_DIRECTION_LTR) {
+      if (DrawableCompat.getLayoutDirection(this) == ViewCompat.LAYOUT_DIRECTION_LTR) {
         outBounds.left = bounds.left + offsetFromStart;
         outBounds.right = bounds.right - offsetFromEnd;
       } else {
@@ -864,13 +854,13 @@ public class ChipDrawable extends MaterialShapeDrawable
    * Calculates the close icon's ChipDrawable-absolute bounds (top-left is <code>
    * [ChipDrawable.getBounds().left, ChipDrawable.getBounds().top]</code>).
    */
-  private void calculateCloseIconBounds(Rect bounds, RectF outBounds) {
+  private void calculateCloseIconBounds(@NonNull Rect bounds, @NonNull RectF outBounds) {
     outBounds.setEmpty();
 
     if (showsCloseIcon()) {
       float offsetFromEnd = chipEndPadding + closeIconEndPadding;
 
-      if (DrawableCompat.getLayoutDirection(this) == View.LAYOUT_DIRECTION_LTR) {
+      if (DrawableCompat.getLayoutDirection(this) == ViewCompat.LAYOUT_DIRECTION_LTR) {
         outBounds.right = bounds.right - offsetFromEnd;
         outBounds.left = outBounds.right - closeIconSize;
       } else {
@@ -883,7 +873,7 @@ public class ChipDrawable extends MaterialShapeDrawable
     }
   }
 
-  private void calculateChipTouchBounds(Rect bounds, RectF outBounds) {
+  private void calculateChipTouchBounds(@NonNull Rect bounds, @NonNull RectF outBounds) {
     outBounds.set(bounds);
 
     if (showsCloseIcon()) {
@@ -894,7 +884,7 @@ public class ChipDrawable extends MaterialShapeDrawable
               + closeIconStartPadding
               + textEndPadding;
 
-      if (DrawableCompat.getLayoutDirection(this) == View.LAYOUT_DIRECTION_LTR) {
+      if (DrawableCompat.getLayoutDirection(this) == ViewCompat.LAYOUT_DIRECTION_LTR) {
         outBounds.right = bounds.right - offsetFromEnd;
       } else {
         outBounds.left = bounds.left + offsetFromEnd;
@@ -902,7 +892,7 @@ public class ChipDrawable extends MaterialShapeDrawable
     }
   }
 
-  private void calculateCloseIconTouchBounds(Rect bounds, RectF outBounds) {
+  private void calculateCloseIconTouchBounds(@NonNull Rect bounds, @NonNull RectF outBounds) {
     outBounds.setEmpty();
 
     if (showsCloseIcon()) {
@@ -913,7 +903,7 @@ public class ChipDrawable extends MaterialShapeDrawable
               + closeIconStartPadding
               + textEndPadding;
 
-      if (DrawableCompat.getLayoutDirection(this) == View.LAYOUT_DIRECTION_LTR) {
+      if (DrawableCompat.getLayoutDirection(this) == ViewCompat.LAYOUT_DIRECTION_LTR) {
         outBounds.right = bounds.right;
         outBounds.left = outBounds.right - offsetFromEnd;
       } else {
@@ -974,7 +964,7 @@ public class ChipDrawable extends MaterialShapeDrawable
   }
 
   @Override
-  public boolean onStateChange(int[] state) {
+  public boolean onStateChange(@NonNull int[] state) {
     if (isShapeThemingEnabled) {
       super.onStateChange(state);
     }
@@ -982,7 +972,7 @@ public class ChipDrawable extends MaterialShapeDrawable
   }
 
   /** Changes appearance in response to the specified state. */
-  private boolean onStateChange(int[] chipState, int[] closeIconState) {
+  private boolean onStateChange(@NonNull int[] chipState, @NonNull int[] closeIconState) {
     // The logic here must match #isStateful()} and #isCloseIconStateful()}.
     boolean invalidate = super.onStateChange(chipState);
     boolean sizeChanged = false;
@@ -1005,6 +995,17 @@ public class ChipDrawable extends MaterialShapeDrawable
       invalidate = true;
     }
 
+    int newCompositeSurfaceBackgroundColor =
+        MaterialColors.layer(newChipSurfaceColor, newChipBackgroundColor);
+    boolean shouldUpdate =
+        currentCompositeSurfaceBackgroundColor != newCompositeSurfaceBackgroundColor;
+    shouldUpdate |= getFillColor() == null;
+    if (shouldUpdate) {
+      currentCompositeSurfaceBackgroundColor = newCompositeSurfaceBackgroundColor;
+      setFillColor(ColorStateList.valueOf(currentCompositeSurfaceBackgroundColor));
+      invalidate = true;
+    }
+
     int newChipStrokeColor =
         chipStrokeColor != null
             ? chipStrokeColor.getColorForState(chipState, currentChipStrokeColor)
@@ -1015,7 +1016,7 @@ public class ChipDrawable extends MaterialShapeDrawable
     }
 
     int newCompatRippleColor =
-        compatRippleColor != null
+        compatRippleColor != null && RippleUtils.shouldDrawRippleCompat(chipState)
             ? compatRippleColor.getColorForState(chipState, currentCompatRippleColor)
             : 0;
     if (currentCompatRippleColor != newCompatRippleColor) {
@@ -1064,7 +1065,19 @@ public class ChipDrawable extends MaterialShapeDrawable
       invalidate |= checkedIcon.setState(chipState);
     }
     if (isStateful(closeIcon)) {
-      invalidate |= closeIcon.setState(closeIconState);
+      // Merge the chipState and closeIconState so that when the Chip is pressed, focused, or
+      // hovered, the close icon acts like it is pressed, focused, or hovered. Do not use the merged
+      // state for the closeIconRipple as that should only behave pressed, focused, or hovered when
+      // the closeIcon is pressed, focused, or hovered.
+      int[] closeIconMergedState = new int[chipState.length + closeIconState.length];
+      System.arraycopy(chipState, 0, closeIconMergedState, 0, chipState.length);
+      System.arraycopy(
+          closeIconState, 0, closeIconMergedState, chipState.length, closeIconState.length);
+      invalidate |= closeIcon.setState(closeIconMergedState);
+    }
+    //noinspection NewApi
+    if (RippleUtils.USE_FRAMEWORK_RIPPLE && isStateful(closeIconRipple)) {
+      invalidate |= closeIconRipple.setState(closeIconState);
     }
 
     if (invalidate) {
@@ -1285,17 +1298,12 @@ public class ChipDrawable extends MaterialShapeDrawable
 
   private void updateCompatRippleColor() {
     compatRippleColor =
-        useCompatRipple ? RippleUtils.convertToRippleDrawableColor(rippleColor) : null;
+        useCompatRipple ? RippleUtils.sanitizeRippleDrawableColor(rippleColor) : null;
   }
 
   private void setChipSurfaceColor(@Nullable ColorStateList chipSurfaceColor) {
     if (this.chipSurfaceColor != chipSurfaceColor) {
       this.chipSurfaceColor = chipSurfaceColor;
-      if (isShapeThemingEnabled) {
-        if (chipSurfaceColor != null && chipBackgroundColor != null) {
-          setFillColor(compositeSurfaceBackgroundColor(chipBackgroundColor, chipSurfaceColor));
-        }
-      }
       onStateChange(getState());
     }
   }
@@ -1353,19 +1361,8 @@ public class ChipDrawable extends MaterialShapeDrawable
   public void setChipBackgroundColor(@Nullable ColorStateList chipBackgroundColor) {
     if (this.chipBackgroundColor != chipBackgroundColor) {
       this.chipBackgroundColor = chipBackgroundColor;
-      if (isShapeThemingEnabled) {
-        if (chipSurfaceColor != null && chipBackgroundColor != null) {
-          setFillColor(compositeSurfaceBackgroundColor(chipBackgroundColor, chipSurfaceColor));
-        }
-      }
       onStateChange(getState());
     }
-  }
-
-  private ColorStateList compositeSurfaceBackgroundColor(
-      @NonNull ColorStateList backgroundColor, @NonNull ColorStateList surfaceColor) {
-    return MaterialColors.layer(
-        surfaceColor, currentChipSurfaceColor, backgroundColor, currentChipBackgroundColor, states);
   }
 
   /**
@@ -1409,14 +1406,14 @@ public class ChipDrawable extends MaterialShapeDrawable
    * @attr ref com.google.android.material.R.styleable#Chip_chipCornerRadius
    */
   public float getChipCornerRadius() {
-    return isShapeThemingEnabled
-        ? getShapeAppearanceModel().getTopLeftCorner().getCornerSize()
-        : chipCornerRadius;
+    return isShapeThemingEnabled ? getTopLeftCornerResolvedSize() : chipCornerRadius;
   }
 
   /**
-   * @deprecated Use {@link com.google.android.material.shape.ShapeAppearanceModel#setAllCorners(int,
-   *     int)} instead.
+   * @deprecated call {@link ShapeAppearanceModel#withCornerSize()} or call {@link
+   *     ShapeAppearanceModel#toBuilder()} on the {@link #getShapeAppearanceModel()}, modify the
+   *     shape using the builder and then call {@link
+   *     #setShapeAppearanceModel(ShapeAppearanceModel)}.
    */
   @Deprecated
   public void setChipCornerRadiusResource(@DimenRes int id) {
@@ -1424,17 +1421,17 @@ public class ChipDrawable extends MaterialShapeDrawable
   }
 
   /**
-   * @deprecated Use {@link com.google.android.material.shape.ShapeAppearanceModel#setAllCorners(int,
-   *     int)} instead.
+   * @deprecated call {@link ShapeAppearanceModel#withCornerSize()} or call {@link
+   *     ShapeAppearanceModel#toBuilder()} on the {@link #getShapeAppearanceModel()}, modify the
+   *     shape using the builder and then call {@link
+   *     #setShapeAppearanceModel(ShapeAppearanceModel)}.
    */
   @Deprecated
   public void setChipCornerRadius(float chipCornerRadius) {
     if (this.chipCornerRadius != chipCornerRadius) {
       this.chipCornerRadius = chipCornerRadius;
 
-      ShapeAppearanceModel shapeAppearanceModel = getShapeAppearanceModel();
-      shapeAppearanceModel.setCornerRadius(chipCornerRadius);
-      invalidateSelf();
+      setShapeAppearanceModel(getShapeAppearanceModel().withCornerSize(chipCornerRadius));
     }
   }
 
@@ -1548,7 +1545,7 @@ public class ChipDrawable extends MaterialShapeDrawable
     }
   }
 
-  @NonNull
+  @Nullable
   public CharSequence getText() {
     return text;
   }
@@ -1779,6 +1776,9 @@ public class ChipDrawable extends MaterialShapeDrawable
     if (oldCloseIcon != closeIcon) {
       float oldCloseIconWidth = calculateCloseIconWidth();
       this.closeIcon = closeIcon != null ? DrawableCompat.wrap(closeIcon).mutate() : null;
+      if (RippleUtils.USE_FRAMEWORK_RIPPLE) {
+        updateFrameworkCloseIconRipple();
+      }
       float newCloseIconWidth = calculateCloseIconWidth();
 
       unapplyChildDrawable(oldCloseIcon);
@@ -1791,6 +1791,17 @@ public class ChipDrawable extends MaterialShapeDrawable
         onSizeChange();
       }
     }
+  }
+
+  @TargetApi(VERSION_CODES.LOLLIPOP)
+  private void updateFrameworkCloseIconRipple() {
+    closeIconRipple =
+        new RippleDrawable(
+            RippleUtils.sanitizeRippleDrawableColor(getRippleColor()),
+            closeIcon,
+            // A separate drawable with a solid background is needed for the mask because by
+            // default, the close icon has a transparent background.
+            closeIconRippleMask);
   }
 
   @Nullable
@@ -1964,7 +1975,7 @@ public class ChipDrawable extends MaterialShapeDrawable
   /**
    * Returns this chip's show motion spec.
    *
-   * @see #setShowMotionSpec(Drawable)
+   * @see #setShowMotionSpec(MotionSpec)
    * @attr ref com.google.android.material.R.styleable#Chip_showMotionSpec
    */
   @Nullable
@@ -1995,7 +2006,7 @@ public class ChipDrawable extends MaterialShapeDrawable
   /**
    * Returns this chip's hide motion spec.
    *
-   * @see #setHideMotionSpec(Drawable)
+   * @see #setHideMotionSpec(MotionSpec)
    * @attr ref com.google.android.material.R.styleable#Chip_hideMotionSpec
    */
   @Nullable

@@ -10,19 +10,19 @@ dependencies {
   api compatibility("cardview")
   api compatibility("coordinatorlayout")
   api compatibility("core")
-  api compatibility("core_ui")
-  api compatibility("core_utils")
   api compatibility("fragment")
+  api compatibility("lifecycleRuntime")
   api compatibility("recyclerview")
   api compatibility("transition")
   api compatibility("vectordrawable")
+  api compatibility("viewpager2")
 
   testImplementation "androidx.test:core:${project.rootProject.ext.testRunnerVersion}"
   testImplementation "androidx.test:runner:${project.rootProject.ext.testRunnerVersion}"
   testImplementation "junit:junit:4.12"
-  testImplementation "com.google.truth:truth:0.35"
-  testImplementation "org.mockito:mockito-core:1.9.5"
-  testImplementation "org.robolectric:robolectric:4.3-alpha-2"
+  testImplementation "com.google.truth:truth:${project.rootProject.ext.truthVersion}"
+  testImplementation "org.mockito:mockito-core:${project.rootProject.ext.mockitoCoreVersion}"
+  testImplementation "org.robolectric:robolectric:4.3"
 
   testAnnotationProcessor "com.google.auto.service:auto-service:1.0-rc4"
 }
@@ -44,6 +44,7 @@ def srcDirs = [
   'com/google/android/material/circularreveal/cardview',
   'com/google/android/material/circularreveal/coordinatorlayout',
   'com/google/android/material/color',
+  'com/google/android/material/datepicker',
   'com/google/android/material/dialog',
   'com/google/android/material/drawable',
   'com/google/android/material/elevation',
@@ -53,18 +54,20 @@ def srcDirs = [
   'com/google/android/material/math',
   'com/google/android/material/menu',
   'com/google/android/material/navigation',
-  'com/google/android/material/picker',
   'com/google/android/material/radiobutton',
   'com/google/android/material/resources',
   'com/google/android/material/ripple',
   'com/google/android/material/shape',
   'com/google/android/material/shadow',
+  'com/google/android/material/slider',
   'com/google/android/material/snackbar',
   'com/google/android/material/stateful',
   'com/google/android/material/switchmaterial',
   'com/google/android/material/tabs',
   'com/google/android/material/textfield',
+  'com/google/android/material/textview',
   'com/google/android/material/theme',
+  'com/google/android/material/theme/overlay',
   'com/google/android/material/transformation',
   'com/google/android/material/typography',
 ]
@@ -88,7 +91,11 @@ android {
   testOptions.unitTests.includeAndroidResources = true
 
   buildTypes.all {
-    consumerProguardFiles 'proguard-behaviors.pro', 'proguard-inflater.pro'
+    consumerProguardFiles 'proguard-behaviors.pro', 'proguard-inflater.pro', 'proguard-recyclerview.pro'
+  }
+
+  defaultConfig {
+    minSdkVersion 14
   }
 }
 
@@ -101,7 +108,7 @@ gradle.projectsEvaluated {
   }
 }
 
-task generateJavadocs(type: Javadoc, dependsOn: ':lib:compileReleaseJavaWithJavac') {
+task generateJavadocs(type: Javadoc) {
   if (project.hasProperty("online")) {
     options.addStringOption("toroot", "/")
     options.addStringOption("hdf", "android.whichdoc online")
@@ -118,7 +125,6 @@ task generateJavadocs(type: Javadoc, dependsOn: ':lib:compileReleaseJavaWithJava
 
     source = android.sourceSets.main.java.source
     source = source.findAll { it.name.endsWith(".java") }
-    include '**/com/google/android/material/**'
 
     title = null
     destinationDir = new File(outputPath)
@@ -133,24 +139,30 @@ task generateJavadocs(type: Javadoc, dependsOn: ':lib:compileReleaseJavaWithJava
   }
 }
 
-task getVersion << {
-  println version
+task getVersion {
+  doLast {
+    println version
+  }
 }
 
-task generateApiXml(type: Javadoc, dependsOn: ':lib:compileReleaseJavaWithJavac') {
+task generateApiXml(type: Javadoc) {
   if (project.hasProperty("apiName")) {
     def jdiff = project.property("jdiffJar")
     def apiName = project.property("apiName")
     source = android.sourceSets.main.java.source
     source = source.findAll { it.name.endsWith(".java") }
     classpath = files("${android.sdkDirectory}/platforms/${android.compileSdkVersion}/android.jar")
-    include '**/com/google/android/material/**'
     options.doclet = "jdiff.JDiff"
     options.addStringOption("subpackages", ".")
     options.addStringOption("apiname", apiName)
     options.docletpath = [
       file(jdiff),
     ]
+  }
+
+  doLast {
+    // Escape incorrect ampersands in API XML file
+    ["sed", "-i", "s/ & / \\&amp; /g", "lib/${apiName}.xml"].execute()
   }
 }
 
@@ -181,19 +193,21 @@ task generateJdiffReport(type: Javadoc) {
   }
 }
 
+def R_CLASS_PATH = "build/generated/not_namespaced_r_class_sources/releaseUnitTest/processReleaseUnitTestResources/r/com/google/android/material/R.java"
 afterEvaluate {
-  addResources([generateJavadocs, generateApiXml])
-}
+  [generateJavadocs, generateApiXml].forEach { task ->
+    task.dependsOn(':lib:processReleaseUnitTestResources')
+    task.source += R_CLASS_PATH
 
-def addResources(tasks) {
-  tasks.each {
     def releaseVariant = android.libraryVariants.find { it.name == 'release' }
-    it.classpath += files(android.libraryVariants.collect { variant ->
-      variant.javaCompile.classpath.files
-    })
-    it.classpath += releaseVariant.getCompileClasspath(null)
-    it.classpath += it.project.files(releaseVariant.javaCompile.destinationDir)
-    it.source += releaseVariant.javaCompile.source
+    if (releaseVariant == null) {
+      return
+    }
+    releaseVariant.javaCompileProvider.configure { javaCompileProvider ->
+      task.classpath += releaseVariant.getCompileClasspath(null)
+      task.classpath += task.project.files(javaCompileProvider.destinationDir)
+      task.source += javaCompileProvider.source
+    }
   }
 }
 

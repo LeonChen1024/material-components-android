@@ -24,14 +24,10 @@ import android.content.Context;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
-import android.os.Build.VERSION;
-import android.os.Build.VERSION_CODES;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RestrictTo;
 import androidx.annotation.StyleRes;
-import com.google.android.material.badge.BadgeDrawable;
-import com.google.android.material.badge.BadgeUtils;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.drawable.DrawableCompat;
 import androidx.core.view.PointerIconCompat;
@@ -45,9 +41,12 @@ import android.util.AttributeSet;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
+import com.google.android.material.badge.BadgeDrawable;
+import com.google.android.material.badge.BadgeUtils;
 
 /** @hide */
 @RestrictTo(LIBRARY_GROUP)
@@ -69,11 +68,11 @@ public class BottomNavigationItemView extends FrameLayout implements MenuView.It
   private final TextView largeLabel;
   private int itemPosition = INVALID_ITEM_POSITION;
 
-  private MenuItemImpl itemData;
+  @Nullable private MenuItemImpl itemData;
 
-  private ColorStateList iconTint;
-  private Drawable originalIconDrawable;
-  private Drawable wrappedIconDrawable;
+  @Nullable private ColorStateList iconTint;
+  @Nullable private Drawable originalIconDrawable;
+  @Nullable private Drawable wrappedIconDrawable;
 
   @Nullable private BadgeDrawable badgeDrawable;
 
@@ -81,16 +80,14 @@ public class BottomNavigationItemView extends FrameLayout implements MenuView.It
     this(context, null);
   }
 
-  public BottomNavigationItemView(@NonNull Context context, AttributeSet attrs) {
+  public BottomNavigationItemView(@NonNull Context context, @Nullable AttributeSet attrs) {
     this(context, attrs, 0);
   }
 
-  public BottomNavigationItemView(Context context, AttributeSet attrs, int defStyleAttr) {
+  public BottomNavigationItemView(
+      @NonNull Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
     super(context, attrs, defStyleAttr);
     final Resources res = getResources();
-    // Avoid clipping a badge if it's displayed.
-    setClipChildren(false);
-    setClipToPadding(false);
 
     LayoutInflater.from(context).inflate(R.layout.design_bottom_navigation_item, this, true);
     setBackgroundResource(R.drawable.design_bottom_navigation_item_background);
@@ -106,7 +103,7 @@ public class BottomNavigationItemView extends FrameLayout implements MenuView.It
     setFocusable(true);
     calculateTextScaleFactors(smallLabel.getTextSize(), largeLabel.getTextSize());
 
-    // TODO: Support displaying a badge on label-only bottom navigation views.
+    // TODO(b/138148581): Support displaying a badge on label-only bottom navigation views.
     if (icon != null) {
       icon.addOnLayoutChangeListener(
           new OnLayoutChangeListener() {
@@ -127,10 +124,11 @@ public class BottomNavigationItemView extends FrameLayout implements MenuView.It
             }
           });
     }
+    ViewCompat.setAccessibilityDelegate(this, null);
   }
 
   @Override
-  public void initialize(MenuItemImpl itemData, int menuType) {
+  public void initialize(@NonNull MenuItemImpl itemData, int menuType) {
     this.itemData = itemData;
     setCheckable(itemData.isCheckable());
     setChecked(itemData.isChecked());
@@ -141,7 +139,11 @@ public class BottomNavigationItemView extends FrameLayout implements MenuView.It
     if (!TextUtils.isEmpty(itemData.getContentDescription())) {
       setContentDescription(itemData.getContentDescription());
     }
-    TooltipCompat.setTooltipText(this, itemData.getTooltipText());
+
+    CharSequence tooltipText = !TextUtils.isEmpty(itemData.getTooltipText())
+        ? itemData.getTooltipText()
+        : itemData.getTitle();
+    TooltipCompat.setTooltipText(this, tooltipText);
     setVisibility(itemData.isVisible() ? View.VISIBLE : View.GONE);
   }
 
@@ -187,6 +189,11 @@ public class BottomNavigationItemView extends FrameLayout implements MenuView.It
     if (itemData == null || TextUtils.isEmpty(itemData.getContentDescription())) {
       setContentDescription(title);
     }
+
+    CharSequence tooltipText = itemData == null || TextUtils.isEmpty(itemData.getTooltipText())
+        ? title
+        : itemData.getTooltipText();
+    TooltipCompat.setTooltipText(this, tooltipText);
   }
 
   @Override
@@ -267,6 +274,19 @@ public class BottomNavigationItemView extends FrameLayout implements MenuView.It
     setSelected(checked);
   }
 
+  @Override
+  public void onInitializeAccessibilityNodeInfo(@NonNull AccessibilityNodeInfo info) {
+    super.onInitializeAccessibilityNodeInfo(info);
+    if (badgeDrawable != null && badgeDrawable.isVisible()) {
+      CharSequence customContentDescription = itemData.getTitle();
+      if (!TextUtils.isEmpty(itemData.getContentDescription())) {
+        customContentDescription = itemData.getContentDescription();
+      }
+      info.setContentDescription(
+          customContentDescription + ", " + badgeDrawable.getContentDescription());
+    }
+  }
+
   private void setViewLayoutParams(@NonNull View view, int topMargin, int gravity) {
     LayoutParams viewParams = (LayoutParams) view.getLayoutParams();
     viewParams.topMargin = topMargin;
@@ -308,7 +328,7 @@ public class BottomNavigationItemView extends FrameLayout implements MenuView.It
   public void setShortcut(boolean showShortcut, char shortcutKey) {}
 
   @Override
-  public void setIcon(Drawable iconDrawable) {
+  public void setIcon(@Nullable Drawable iconDrawable) {
     if (iconDrawable == originalIconDrawable) {
       return;
     }
@@ -320,7 +340,9 @@ public class BottomNavigationItemView extends FrameLayout implements MenuView.It
       iconDrawable =
           DrawableCompat.wrap(state == null ? iconDrawable : state.newDrawable()).mutate();
       wrappedIconDrawable = iconDrawable;
-      DrawableCompat.setTintList(wrappedIconDrawable, iconTint);
+      if (iconTint != null) {
+        DrawableCompat.setTintList(wrappedIconDrawable, iconTint);
+      }
     }
     this.icon.setImageDrawable(iconDrawable);
   }
@@ -414,21 +436,29 @@ public class BottomNavigationItemView extends FrameLayout implements MenuView.It
         badgeDrawable, anchorView, getCustomParentForBadge(anchorView));
   }
 
-  private void tryAttachBadgeToAnchor(View anchorView) {
+  private void tryAttachBadgeToAnchor(@Nullable View anchorView) {
     if (!hasBadge()) {
       return;
     }
     if (anchorView != null) {
+      // Avoid clipping a badge if it's displayed.
+      setClipChildren(false);
+      setClipToPadding(false);
+
       BadgeUtils.attachBadgeDrawable(
           badgeDrawable, anchorView, getCustomParentForBadge(anchorView));
     }
   }
 
-  private void tryRemoveBadgeFromAnchor(View anchorView) {
+  private void tryRemoveBadgeFromAnchor(@Nullable View anchorView) {
     if (!hasBadge()) {
       return;
     }
     if (anchorView != null) {
+      // Clip children / view to padding when no badge is displayed.
+      setClipChildren(true);
+      setClipToPadding(true);
+
       BadgeUtils.detachBadgeDrawable(
           badgeDrawable, anchorView, getCustomParentForBadge(anchorView));
     }
@@ -438,11 +468,9 @@ public class BottomNavigationItemView extends FrameLayout implements MenuView.It
   @Nullable
   private FrameLayout getCustomParentForBadge(View anchorView) {
     if (anchorView == icon) {
-      return (VERSION.SDK_INT < VERSION_CODES.JELLY_BEAN_MR2)
-          ? ((FrameLayout) icon.getParent())
-          : null;
+      return BadgeUtils.USE_COMPAT_PARENT ? ((FrameLayout) icon.getParent()) : null;
     }
-    // TODO: Support displaying a badge on label-only bottom navigation views.
+    // TODO(b/138148581): Support displaying a badge on label-only bottom navigation views.
     return null;
   }
 }

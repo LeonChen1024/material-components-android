@@ -16,14 +16,19 @@
 
 package com.google.android.material.badge;
 
+import android.content.Context;
 import android.graphics.Rect;
 import android.os.Build.VERSION;
 import android.os.Build.VERSION_CODES;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RestrictTo;
 import androidx.annotation.RestrictTo.Scope;
+import android.util.SparseArray;
 import android.view.View;
 import android.widget.FrameLayout;
+import com.google.android.material.badge.BadgeDrawable.SavedState;
+import com.google.android.material.internal.ParcelableSparseArray;
 
 /**
  * Utility class for {@link BadgeDrawable}.
@@ -33,23 +38,7 @@ import android.widget.FrameLayout;
 @RestrictTo(Scope.LIBRARY)
 public class BadgeUtils {
 
-  /**
-   * Maximum number of characters a badge supports displaying by default. It could be changed using
-   * BadgeDrawable#setMaxBadgeCount.
-   */
-  public static final int DEFAULT_MAX_BADGE_CHARACTER_COUNT = 4;
-
-  /** Value of -1 denotes an icon only badge. */
-  public static final int ICON_ONLY_BADGE_NUMBER = -1;
-
-  /** Maximum value of number that can be displayed in a circular badge. */
-  static final int MAX_CIRCULAR_BADGE_NUMBER_COUNT = 99;
-
-  /**
-   * If the badge number exceeds the maximum allowed number, append this suffix to the max badge
-   * number and display is as the badge text instead.
-   */
-  static final String DEFAULT_EXCEED_MAX_BADGE_NUMBER_SUFFIX = "+";
+  public static final boolean USE_COMPAT_PARENT = VERSION.SDK_INT < VERSION_CODES.JELLY_BEAN_MR2;
 
   private BadgeUtils() {
     // Private constructor to prevent unwanted construction.
@@ -65,7 +54,7 @@ public class BadgeUtils {
    * @param halfHeight Half of a badge's height.
    */
   public static void updateBadgeBounds(
-      Rect rect, float centerX, float centerY, float halfWidth, float halfHeight) {
+      @NonNull Rect rect, float centerX, float centerY, float halfWidth, float halfHeight) {
     rect.set(
         (int) (centerX - halfWidth),
         (int) (centerY - halfHeight),
@@ -81,10 +70,12 @@ public class BadgeUtils {
    * ancestor of the anchor.
    */
   public static void attachBadgeDrawable(
-      BadgeDrawable badgeDrawable, View anchor, FrameLayout preApi18BadgeParent) {
-    setBadgeDrawableBounds(badgeDrawable, anchor, preApi18BadgeParent);
-    if (VERSION.SDK_INT < VERSION_CODES.JELLY_BEAN_MR2) {
-      preApi18BadgeParent.setForeground(badgeDrawable);
+      @NonNull BadgeDrawable badgeDrawable,
+      @NonNull View anchor,
+      @NonNull FrameLayout compatBadgeParent) {
+    setBadgeDrawableBounds(badgeDrawable, anchor, compatBadgeParent);
+    if (USE_COMPAT_PARENT) {
+      compatBadgeParent.setForeground(badgeDrawable);
     } else {
       anchor.getOverlay().add(badgeDrawable);
     }
@@ -97,12 +88,14 @@ public class BadgeUtils {
    * an ancestor of the anchor.
    */
   public static void detachBadgeDrawable(
-      @Nullable BadgeDrawable badgeDrawable, View anchor, FrameLayout preApi18BadgeParent) {
+      @Nullable BadgeDrawable badgeDrawable,
+      @NonNull View anchor,
+      @NonNull FrameLayout compatBadgeParent) {
     if (badgeDrawable == null) {
       return;
     }
-    if (VERSION.SDK_INT < VERSION_CODES.JELLY_BEAN_MR2) {
-      preApi18BadgeParent.setForeground(null);
+    if (USE_COMPAT_PARENT) {
+      compatBadgeParent.setForeground(null);
     } else {
       anchor.getOverlay().remove(badgeDrawable);
     }
@@ -113,14 +106,63 @@ public class BadgeUtils {
    * anchor's FrameLayout ancestor (pre-API 18).
    */
   public static void setBadgeDrawableBounds(
-      BadgeDrawable badgeDrawable, View anchor, FrameLayout preApi18BadgeParent) {
+      @NonNull BadgeDrawable badgeDrawable,
+      @NonNull View anchor,
+      @NonNull FrameLayout compatBadgeParent) {
     Rect badgeBounds = new Rect();
-    if (VERSION.SDK_INT < VERSION_CODES.JELLY_BEAN_MR2) {
-      preApi18BadgeParent.getDrawingRect(badgeBounds);
-    } else {
-      anchor.getDrawingRect(badgeBounds);
-    }
+    View badgeParent = USE_COMPAT_PARENT ? compatBadgeParent : anchor;
+    badgeParent.getDrawingRect(badgeBounds);
     badgeDrawable.setBounds(badgeBounds);
-    badgeDrawable.updateBadgeCoordinates(anchor, preApi18BadgeParent);
+    badgeDrawable.updateBadgeCoordinates(anchor, compatBadgeParent);
+  }
+
+  /**
+   * Given a map of int keys to {@code BadgeDrawable BadgeDrawables}, creates a parcelable map of
+   * unique int keys to {@code BadgeDrawable.SavedState SavedStates}. Useful for state restoration.
+   *
+   * @param badgeDrawables A {@link SparseArray} that contains a map of int keys (e.g. menuItemId)
+   *     to {@code BadgeDrawable BadgeDrawables}.
+   * @return A parcelable {@link SparseArray} that contains a map of int keys (e.g. menuItemId) to
+   *     {@code BadgeDrawable.SavedState SavedStates}.
+   */
+  @NonNull
+  public static ParcelableSparseArray createParcelableBadgeStates(
+      @NonNull SparseArray<BadgeDrawable> badgeDrawables) {
+    ParcelableSparseArray badgeStates = new ParcelableSparseArray();
+    for (int i = 0; i < badgeDrawables.size(); i++) {
+      int key = badgeDrawables.keyAt(i);
+      BadgeDrawable badgeDrawable = badgeDrawables.valueAt(i);
+      if (badgeDrawable == null) {
+        throw new IllegalArgumentException("badgeDrawable cannot be null");
+      }
+      badgeStates.put(key, badgeDrawable.getSavedState());
+    }
+    return badgeStates;
+  }
+
+  /**
+   * Given a map of int keys to {@link BadgeDrawable.SavedState SavedStates}, creates a parcelable
+   * map of int keys to {@link BadgeDrawable BadgeDrawbles}. Useful for state restoration.
+   *
+   * @param context Current context
+   * @param badgeStates A parcelable {@link SparseArray} that contains a map of int keys (e.g.
+   *     menuItemId) to {@link BadgeDrawable.SavedState states}.
+   * @return A {@link SparseArray} that contains a map of int keys (e.g. menuItemId) to {@code
+   *     BadgeDrawable BadgeDrawbles}.
+   */
+  @NonNull
+  public static SparseArray<BadgeDrawable> createBadgeDrawablesFromSavedStates(
+      Context context, @NonNull ParcelableSparseArray badgeStates) {
+    SparseArray<BadgeDrawable> badgeDrawables = new SparseArray<>(badgeStates.size());
+    for (int i = 0; i < badgeStates.size(); i++) {
+      int key = badgeStates.keyAt(i);
+      BadgeDrawable.SavedState savedState = (SavedState) badgeStates.valueAt(i);
+      if (savedState == null) {
+        throw new IllegalArgumentException("BadgeDrawable's savedState cannot be null");
+      }
+      BadgeDrawable badgeDrawable = BadgeDrawable.createFromSavedState(context, savedState);
+      badgeDrawables.put(key, badgeDrawable);
+    }
+    return badgeDrawables;
   }
 }

@@ -18,8 +18,9 @@ package com.google.android.material.textfield;
 
 import com.google.android.material.R;
 
-import static com.google.android.material.internal.ThemeEnforcement.createThemedContext;
+import static androidx.annotation.RestrictTo.Scope.LIBRARY_GROUP;
 import static com.google.android.material.textfield.IndicatorViewController.COUNTER_INDEX;
+import static com.google.android.material.theme.overlay.MaterialThemeOverlay.wrap;
 
 import android.animation.ValueAnimator;
 import android.content.Context;
@@ -43,19 +44,10 @@ import androidx.annotation.DrawableRes;
 import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.RestrictTo;
 import androidx.annotation.StringRes;
 import androidx.annotation.StyleRes;
 import androidx.annotation.VisibleForTesting;
-import com.google.android.material.animation.AnimationUtils;
-import com.google.android.material.color.MaterialColors;
-import com.google.android.material.internal.CheckableImageButton;
-import com.google.android.material.internal.CollapsingTextHelper;
-import com.google.android.material.internal.DescendantOffsetUtils;
-import com.google.android.material.internal.ThemeEnforcement;
-import com.google.android.material.internal.ViewUtils;
-import com.google.android.material.resources.MaterialResources;
-import com.google.android.material.shape.MaterialShapeDrawable;
-import com.google.android.material.shape.ShapeAppearanceModel;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.drawable.DrawableCompat;
 import androidx.customview.view.AbsSavedState;
@@ -81,10 +73,21 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewStructure;
 import android.view.accessibility.AccessibilityEvent;
+import android.widget.AutoCompleteTextView;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import com.google.android.material.animation.AnimationUtils;
+import com.google.android.material.color.MaterialColors;
+import com.google.android.material.internal.CheckableImageButton;
+import com.google.android.material.internal.CollapsingTextHelper;
+import com.google.android.material.internal.DescendantOffsetUtils;
+import com.google.android.material.internal.ThemeEnforcement;
+import com.google.android.material.internal.ViewUtils;
+import com.google.android.material.resources.MaterialResources;
+import com.google.android.material.shape.MaterialShapeDrawable;
+import com.google.android.material.shape.ShapeAppearanceModel;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.LinkedHashSet;
@@ -96,9 +99,12 @@ import java.util.LinkedHashSet;
  * <p>Also supports:
  *
  * <ul>
- *   <li>Showing an error via {@link #setErrorEnabled(boolean)} and {@link #setError(CharSequence)}
+ *   <li>Showing an error via {@link #setErrorEnabled(boolean)} and {@link #setError(CharSequence)},
+ *       along with showing an error icon via {@link #setErrorIconDrawable}
  *   <li>Showing helper text via {@link #setHelperTextEnabled(boolean)} and {@link
  *       #setHelperText(CharSequence)}
+ *   <li>Showing prefix text via {@link #setPrefixText(CharSequence)}
+ *   <li>Showing suffix text via {@link #setSuffixText(CharSequence)}
  *   <li>Showing a character counter via {@link #setCounterEnabled(boolean)} and {@link
  *       #setCounterMaxLength(int)}
  *   <li>Password visibility toggling via {@link #setEndIconMode(int)} API and related attribute. If
@@ -120,6 +126,13 @@ import java.util.LinkedHashSet;
  *       <p><strong>Note:</strong> Use the {@link #setStartIconDrawable(Drawable)} API in place of
  *       setting a start/left compound drawable on the EditText. When using a start icon, the
  *       'start/left' compound drawable of the EditText will be overridden.
+ *   <li>Showing a button that when clicked displays a dropdown menu. The selected option is
+ *       displayed above the dropdown. You need to use an {@link AutoCompleteTextView} instead of a
+ *       {@link TextInputEditText} as the input text child, and a
+ *       Widget.MaterialComponents.TextInputLayout.(...).ExposedDropdownMenu style.
+ *       <p>To disable user input you should set
+ *       <pre>android:editable=&quot;false&quot;</pre>
+ *       on the {@link AutoCompleteTextView}.
  * </ul>
  *
  * <p>The {@link TextInputEditText} class is provided to be used as the input text child of this
@@ -169,7 +182,10 @@ public class TextInputLayout extends LinearLayout {
 
   private static final String LOG_TAG = "TextInputLayout";
 
-  private final FrameLayout inputFrame;
+  @NonNull private final FrameLayout inputFrame;
+  @NonNull private final LinearLayout startLayout;
+  @NonNull private final LinearLayout endLayout;
+  @NonNull private final FrameLayout endIconFrame;
   EditText editText;
   private CharSequence originalHint;
 
@@ -178,12 +194,17 @@ public class TextInputLayout extends LinearLayout {
   boolean counterEnabled;
   private int counterMaxLength;
   private boolean counterOverflowed;
-  private TextView counterView;
+  @Nullable private TextView counterView;
   private int counterOverflowTextAppearance;
   private int counterTextAppearance;
 
   @Nullable private ColorStateList counterTextColor;
   @Nullable private ColorStateList counterOverflowTextColor;
+
+  @Nullable private CharSequence prefixText;
+  @NonNull private final TextView prefixTextView;
+  @Nullable private CharSequence suffixText;
+  @NonNull private final TextView suffixTextView;
 
   private boolean hintEnabled;
   private CharSequence hint;
@@ -195,10 +216,9 @@ public class TextInputLayout extends LinearLayout {
    */
   private boolean isProvidingHint;
 
-  private MaterialShapeDrawable boxBackground;
-  private MaterialShapeDrawable boxUnderline;
-  private final ShapeAppearanceModel shapeAppearanceModel;
-  private final ShapeAppearanceModel cornerAdjustedShapeAppearanceModel;
+  @Nullable private MaterialShapeDrawable boxBackground;
+  @Nullable private MaterialShapeDrawable boxUnderline;
+  @NonNull private ShapeAppearanceModel shapeAppearanceModel;
 
   private final int boxLabelCutoutPaddingPx;
   @BoxBackgroundMode private int boxBackgroundMode;
@@ -226,15 +246,28 @@ public class TextInputLayout extends LinearLayout {
   private final RectF tmpRectF = new RectF();
   private Typeface typeface;
 
-  private final CheckableImageButton startIconView;
+  @NonNull private final CheckableImageButton startIconView;
   private ColorStateList startIconTintList;
   private boolean hasStartIconTintList;
   private PorterDuff.Mode startIconTintMode;
   private boolean hasStartIconTintMode;
-  private Drawable startIconDummyDrawable;
+  @Nullable private Drawable startDummyDrawable;
+  private int startDummyDrawableWidth;
+  private OnLongClickListener startIconOnLongClickListener;
 
-  /** Values for the end icon mode. */
-  @IntDef({END_ICON_CUSTOM, END_ICON_NONE, END_ICON_PASSWORD_TOGGLE, END_ICON_CLEAR_TEXT})
+  /**
+   * Values for the end icon mode.
+   *
+   * @hide
+   */
+  @RestrictTo(LIBRARY_GROUP)
+  @IntDef({
+    END_ICON_CUSTOM,
+    END_ICON_NONE,
+    END_ICON_PASSWORD_TOGGLE,
+    END_ICON_CLEAR_TEXT,
+    END_ICON_DROPDOWN_MENU
+  })
   @Retention(RetentionPolicy.SOURCE)
   public @interface EndIconMode {}
 
@@ -279,6 +312,16 @@ public class TextInputLayout extends LinearLayout {
   public static final int END_ICON_CLEAR_TEXT = 2;
 
   /**
+   * The TextInputLayout will show a dropdown button if the EditText is an {@link
+   * AutoCompleteTextView} and a {@code
+   * Widget.MaterialComponents.TextInputLayout.(...).ExposedDropdownMenu} style is being used.
+   *
+   * <p>Clicking the button will display a popup with a list of options. The current selected option
+   * is displayed on the EditText.
+   */
+  public static final int END_ICON_DROPDOWN_MENU = 3;
+
+  /**
    * Callback interface invoked when the view's {@link EditText} is attached, or from {@link
    * #addOnEditTextAttachedListener(OnEditTextAttachedListener)} if the edit text is already
    * present.
@@ -291,8 +334,10 @@ public class TextInputLayout extends LinearLayout {
      * Called when the {@link EditText} is attached, or from {@link
      * #addOnEditTextAttachedListener(OnEditTextAttachedListener)} if the edit text is already
      * present.
+     *
+     * @param textInputLayout the {@link TextInputLayout}
      */
-    void onEditTextAttached();
+    void onEditTextAttached(TextInputLayout textInputLayout);
   }
 
   /**
@@ -305,9 +350,10 @@ public class TextInputLayout extends LinearLayout {
     /**
      * Called when the end icon changes.
      *
+     * @param textInputLayout the {@link TextInputLayout}
      * @param previousIcon the {@link EndIconMode} the view previously had set
      */
-    void onEndIconChanged(@EndIconMode int previousIcon);
+    void onEndIconChanged(TextInputLayout textInputLayout, @EndIconMode int previousIcon);
   }
 
   private final LinkedHashSet<OnEditTextAttachedListener> editTextAttachedListeners =
@@ -315,28 +361,33 @@ public class TextInputLayout extends LinearLayout {
 
   @EndIconMode private int endIconMode = END_ICON_NONE;
   private final SparseArray<EndIconDelegate> endIconDelegates = new SparseArray<>();
-  private final CheckableImageButton endIconView;
+  @NonNull private final CheckableImageButton endIconView;
   private final LinkedHashSet<OnEndIconChangedListener> endIconChangedListeners =
       new LinkedHashSet<>();
   private ColorStateList endIconTintList;
   private boolean hasEndIconTintList;
   private PorterDuff.Mode endIconTintMode;
   private boolean hasEndIconTintMode;
-  private Drawable endIconDummyDrawable;
+  @Nullable private Drawable endDummyDrawable;
+  private int endDummyDrawableWidth;
   private Drawable originalEditTextEndDrawable;
+  private OnLongClickListener endIconOnLongClickListener;
+  @NonNull private final CheckableImageButton errorIconView;
+  private ColorStateList errorIconTintList;
 
   private ColorStateList defaultHintTextColor;
   private ColorStateList focusedTextColor;
 
-  @ColorInt private final int defaultStrokeColor;
-  @ColorInt private final int hoveredStrokeColor;
+  @ColorInt private int defaultStrokeColor;
+  @ColorInt private int hoveredStrokeColor;
   @ColorInt private int focusedStrokeColor;
+  private ColorStateList strokeErrorColor;
 
   @ColorInt private int defaultFilledBackgroundColor;
   @ColorInt private final int disabledFilledBackgroundColor;
   @ColorInt private final int hoveredFilledBackgroundColor;
 
-  @ColorInt private final int disabledColor;
+  @ColorInt private int disabledColor;
 
   // Only used for testing
   private boolean hintExpanded;
@@ -350,16 +401,16 @@ public class TextInputLayout extends LinearLayout {
 
   private boolean restoringSavedState;
 
-  public TextInputLayout(Context context) {
+  public TextInputLayout(@NonNull Context context) {
     this(context, null);
   }
 
-  public TextInputLayout(Context context, @Nullable AttributeSet attrs) {
+  public TextInputLayout(@NonNull Context context, @Nullable AttributeSet attrs) {
     this(context, attrs, R.attr.textInputStyle);
   }
 
-  public TextInputLayout(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
-    super(createThemedContext(context, attrs, defStyleAttr, DEF_STYLE_RES), attrs, defStyleAttr);
+  public TextInputLayout(@NonNull Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
+    super(wrap(context, attrs, defStyleAttr, DEF_STYLE_RES), attrs, defStyleAttr);
     // Ensure we are using the correctly themed context rather than the context that was passed in.
     context = getContext();
 
@@ -370,6 +421,26 @@ public class TextInputLayout extends LinearLayout {
     inputFrame = new FrameLayout(context);
     inputFrame.setAddStatesFromChildren(true);
     addView(inputFrame);
+    startLayout = new LinearLayout(context);
+    startLayout.setOrientation(HORIZONTAL);
+    startLayout.setLayoutParams(
+        new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            Gravity.START | Gravity.LEFT));
+    inputFrame.addView(startLayout);
+    endLayout = new LinearLayout(context);
+    endLayout.setOrientation(HORIZONTAL);
+    endLayout.setLayoutParams(
+        new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            Gravity.END | Gravity.RIGHT));
+    inputFrame.addView(endLayout);
+    endIconFrame = new FrameLayout(context);
+    endIconFrame.setLayoutParams(
+        new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
     collapsingTextHelper.setTextSizeInterpolator(AnimationUtils.LINEAR_INTERPOLATOR);
     collapsingTextHelper.setPositionInterpolator(AnimationUtils.LINEAR_INTERPOLATOR);
@@ -392,8 +463,8 @@ public class TextInputLayout extends LinearLayout {
     setHint(a.getText(R.styleable.TextInputLayout_android_hint));
     hintAnimationEnabled = a.getBoolean(R.styleable.TextInputLayout_hintAnimationEnabled, true);
 
-    shapeAppearanceModel = new ShapeAppearanceModel(context, attrs, defStyleAttr, DEF_STYLE_RES);
-    cornerAdjustedShapeAppearanceModel = new ShapeAppearanceModel(shapeAppearanceModel);
+    shapeAppearanceModel =
+        ShapeAppearanceModel.builder(context, attrs, defStyleAttr, DEF_STYLE_RES).build();
 
     boxLabelCutoutPaddingPx =
         context
@@ -403,13 +474,17 @@ public class TextInputLayout extends LinearLayout {
         a.getDimensionPixelOffset(R.styleable.TextInputLayout_boxCollapsedPaddingTop, 0);
 
     boxStrokeWidthDefaultPx =
-        context
-            .getResources()
-            .getDimensionPixelSize(R.dimen.mtrl_textinput_box_stroke_width_default);
+        a.getDimensionPixelSize(
+            R.styleable.TextInputLayout_boxStrokeWidth,
+            context
+                .getResources()
+                .getDimensionPixelSize(R.dimen.mtrl_textinput_box_stroke_width_default));
     boxStrokeWidthFocusedPx =
-        context
-            .getResources()
-            .getDimensionPixelSize(R.dimen.mtrl_textinput_box_stroke_width_focused);
+        a.getDimensionPixelSize(
+            R.styleable.TextInputLayout_boxStrokeWidthFocused,
+            context
+                .getResources()
+                .getDimensionPixelSize(R.dimen.mtrl_textinput_box_stroke_width_focused));
     boxStrokeWidthPx = boxStrokeWidthDefaultPx;
 
     float boxCornerRadiusTopStart =
@@ -420,19 +495,20 @@ public class TextInputLayout extends LinearLayout {
         a.getDimension(R.styleable.TextInputLayout_boxCornerRadiusBottomEnd, -1f);
     float boxCornerRadiusBottomStart =
         a.getDimension(R.styleable.TextInputLayout_boxCornerRadiusBottomStart, -1f);
+    ShapeAppearanceModel.Builder shapeBuilder = shapeAppearanceModel.toBuilder();
     if (boxCornerRadiusTopStart >= 0) {
-      shapeAppearanceModel.getTopLeftCorner().setCornerSize(boxCornerRadiusTopStart);
+      shapeBuilder.setTopLeftCornerSize(boxCornerRadiusTopStart);
     }
     if (boxCornerRadiusTopEnd >= 0) {
-      shapeAppearanceModel.getTopRightCorner().setCornerSize(boxCornerRadiusTopEnd);
+      shapeBuilder.setTopRightCornerSize(boxCornerRadiusTopEnd);
     }
     if (boxCornerRadiusBottomEnd >= 0) {
-      shapeAppearanceModel.getBottomRightCorner().setCornerSize(boxCornerRadiusBottomEnd);
+      shapeBuilder.setBottomRightCornerSize(boxCornerRadiusBottomEnd);
     }
     if (boxCornerRadiusBottomStart >= 0) {
-      shapeAppearanceModel.getBottomLeftCorner().setCornerSize(boxCornerRadiusBottomStart);
+      shapeBuilder.setBottomLeftCornerSize(boxCornerRadiusBottomStart);
     }
-    adjustCornerSizeForStrokeWidth();
+    shapeAppearanceModel = shapeBuilder.build();
 
     ColorStateList filledBackgroundColorStateList =
         MaterialResources.getColorStateList(
@@ -471,24 +547,21 @@ public class TextInputLayout extends LinearLayout {
 
     ColorStateList boxStrokeColorStateList =
         MaterialResources.getColorStateList(context, a, R.styleable.TextInputLayout_boxStrokeColor);
-    if (boxStrokeColorStateList != null && boxStrokeColorStateList.isStateful()) {
-      defaultStrokeColor = boxStrokeColorStateList.getDefaultColor();
-      disabledColor =
-          boxStrokeColorStateList.getColorForState(new int[] {-android.R.attr.state_enabled}, -1);
-      hoveredStrokeColor =
-          boxStrokeColorStateList.getColorForState(new int[] {android.R.attr.state_hovered}, -1);
-      focusedStrokeColor =
-          boxStrokeColorStateList.getColorForState(new int[] {android.R.attr.state_focused}, -1);
-    } else {
-      // If attribute boxStrokeColor is not a color state list but only a single value, its value
-      // will be applied to the box's focus state.
-      focusedStrokeColor =
-          a.getColor(R.styleable.TextInputLayout_boxStrokeColor, Color.TRANSPARENT);
-      defaultStrokeColor =
-          ContextCompat.getColor(context, R.color.mtrl_textinput_default_box_stroke_color);
-      disabledColor = ContextCompat.getColor(context, R.color.mtrl_textinput_disabled_color);
-      hoveredStrokeColor =
-          ContextCompat.getColor(context, R.color.mtrl_textinput_hovered_box_stroke_color);
+    // Default values for stroke colors if boxStrokeColorStateList is not stateful
+    focusedStrokeColor = a.getColor(R.styleable.TextInputLayout_boxStrokeColor, Color.TRANSPARENT);
+    defaultStrokeColor =
+        ContextCompat.getColor(context, R.color.mtrl_textinput_default_box_stroke_color);
+    disabledColor = ContextCompat.getColor(context, R.color.mtrl_textinput_disabled_color);
+    hoveredStrokeColor =
+        ContextCompat.getColor(context, R.color.mtrl_textinput_hovered_box_stroke_color);
+    // Values from boxStrokeColorStateList
+    if (boxStrokeColorStateList != null) {
+      setBoxStrokeColorStateList(boxStrokeColorStateList);
+    }
+    if (a.hasValue(R.styleable.TextInputLayout_boxStrokeErrorColor)) {
+      setBoxStrokeErrorColor(
+          MaterialResources.getColorStateList(
+              context, a, R.styleable.TextInputLayout_boxStrokeErrorColor));
     }
 
     final int hintAppearance = a.getResourceId(R.styleable.TextInputLayout_hintTextAppearance, -1);
@@ -499,12 +572,45 @@ public class TextInputLayout extends LinearLayout {
     final int errorTextAppearance =
         a.getResourceId(R.styleable.TextInputLayout_errorTextAppearance, 0);
     final boolean errorEnabled = a.getBoolean(R.styleable.TextInputLayout_errorEnabled, false);
+    // Initialize error icon view.
+    errorIconView =
+        (CheckableImageButton)
+            LayoutInflater.from(getContext())
+                .inflate(R.layout.design_text_input_end_icon, endLayout, false);
+    errorIconView.setVisibility(GONE);
+    if (a.hasValue(R.styleable.TextInputLayout_errorIconDrawable)) {
+      setErrorIconDrawable(a.getDrawable(R.styleable.TextInputLayout_errorIconDrawable));
+    }
+    if (a.hasValue(R.styleable.TextInputLayout_errorIconTint)) {
+      setErrorIconTintList(
+          MaterialResources.getColorStateList(
+              context, a, R.styleable.TextInputLayout_errorIconTint));
+    }
+    if (a.hasValue(R.styleable.TextInputLayout_errorIconTintMode)) {
+      setErrorIconTintMode(
+          ViewUtils.parseTintMode(
+              a.getInt(R.styleable.TextInputLayout_errorIconTintMode, -1), null));
+    }
+    errorIconView.setContentDescription(
+        getResources().getText(R.string.error_icon_content_description));
+    ViewCompat.setImportantForAccessibility(
+        errorIconView, ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);
+    errorIconView.setClickable(false);
+    errorIconView.setFocusable(false);
 
     final int helperTextTextAppearance =
         a.getResourceId(R.styleable.TextInputLayout_helperTextTextAppearance, 0);
     final boolean helperTextEnabled =
         a.getBoolean(R.styleable.TextInputLayout_helperTextEnabled, false);
     final CharSequence helperText = a.getText(R.styleable.TextInputLayout_helperText);
+
+    final int prefixTextAppearance =
+        a.getResourceId(R.styleable.TextInputLayout_prefixTextAppearance, 0);
+    final CharSequence prefixText = a.getText(R.styleable.TextInputLayout_prefixText);
+
+    final int suffixTextAppearance =
+        a.getResourceId(R.styleable.TextInputLayout_suffixTextAppearance, 0);
+    final CharSequence suffixText = a.getText(R.styleable.TextInputLayout_suffixText);
 
     final boolean counterEnabled = a.getBoolean(R.styleable.TextInputLayout_counterEnabled, false);
     setCounterMaxLength(a.getInt(R.styleable.TextInputLayout_counterMaxLength, INVALID_MAX_LENGTH));
@@ -516,10 +622,10 @@ public class TextInputLayout extends LinearLayout {
     startIconView =
         (CheckableImageButton)
             LayoutInflater.from(getContext())
-                .inflate(R.layout.design_text_input_start_icon, inputFrame, false);
-    inputFrame.addView(startIconView);
+                .inflate(R.layout.design_text_input_start_icon, startLayout, false);
     startIconView.setVisibility(GONE);
     setStartIconOnClickListener(null);
+    setStartIconOnLongClickListener(null);
     // Set up start icon if any.
     if (a.hasValue(R.styleable.TextInputLayout_startIconDrawable)) {
       setStartIconDrawable(a.getDrawable(R.styleable.TextInputLayout_startIconDrawable));
@@ -527,6 +633,7 @@ public class TextInputLayout extends LinearLayout {
         setStartIconContentDescription(
             a.getText(R.styleable.TextInputLayout_startIconContentDescription));
       }
+      setStartIconCheckable(a.getBoolean(R.styleable.TextInputLayout_startIconCheckable, true));
     }
     // Default tint for a start icon or value specified by user.
     if (a.hasValue(R.styleable.TextInputLayout_startIconTint)) {
@@ -541,18 +648,21 @@ public class TextInputLayout extends LinearLayout {
               a.getInt(R.styleable.TextInputLayout_startIconTintMode, -1), null));
     }
 
+    setBoxBackgroundMode(
+        a.getInt(R.styleable.TextInputLayout_boxBackgroundMode, BOX_BACKGROUND_NONE));
+
     // Initialize end icon view.
     endIconView =
         (CheckableImageButton)
             LayoutInflater.from(getContext())
-                .inflate(R.layout.design_text_input_end_icon, inputFrame, false);
-    inputFrame.addView(endIconView);
+                .inflate(R.layout.design_text_input_end_icon, endIconFrame, false);
+    endIconFrame.addView(endIconView);
     endIconView.setVisibility(GONE);
     endIconDelegates.append(END_ICON_CUSTOM, new CustomEndIconDelegate(this));
     endIconDelegates.append(END_ICON_NONE, new NoEndIconDelegate(this));
-    endIconDelegates.append(
-        END_ICON_PASSWORD_TOGGLE, new PasswordToggleEndIconDelegate(this));
+    endIconDelegates.append(END_ICON_PASSWORD_TOGGLE, new PasswordToggleEndIconDelegate(this));
     endIconDelegates.append(END_ICON_CLEAR_TEXT, new ClearTextEndIconDelegate(this));
+    endIconDelegates.append(END_ICON_DROPDOWN_MENU, new DropdownMenuEndIconDelegate(this));
     // Set up the end icon if any.
     if (a.hasValue(R.styleable.TextInputLayout_endIconMode)) {
       // Specific defaults depending on which end icon mode is set
@@ -565,9 +675,12 @@ public class TextInputLayout extends LinearLayout {
         setEndIconContentDescription(
             a.getText(R.styleable.TextInputLayout_endIconContentDescription));
       }
+      setEndIconCheckable(a.getBoolean(R.styleable.TextInputLayout_endIconCheckable, true));
     } else if (a.hasValue(R.styleable.TextInputLayout_passwordToggleEnabled)) {
       // Support for deprecated attributes related to the password toggle end icon
-      setEndIconMode(END_ICON_PASSWORD_TOGGLE);
+      boolean passwordToggleEnabled =
+          a.getBoolean(R.styleable.TextInputLayout_passwordToggleEnabled, false);
+      setEndIconMode(passwordToggleEnabled ? END_ICON_PASSWORD_TOGGLE : END_ICON_NONE);
       setEndIconDrawable(a.getDrawable(R.styleable.TextInputLayout_passwordToggleDrawable));
       setEndIconContentDescription(
           a.getText(R.styleable.TextInputLayout_passwordToggleContentDescription));
@@ -598,6 +711,33 @@ public class TextInputLayout extends LinearLayout {
       }
     }
 
+    // Set up prefix view.
+    prefixTextView = new AppCompatTextView(context);
+    prefixTextView.setId(R.id.textinput_prefix_text);
+    prefixTextView.setLayoutParams(
+        new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+    ViewCompat.setAccessibilityLiveRegion(
+        prefixTextView, ViewCompat.ACCESSIBILITY_LIVE_REGION_POLITE);
+
+    startLayout.addView(startIconView);
+    startLayout.addView(prefixTextView);
+
+    // Set up suffix view.
+    suffixTextView = new AppCompatTextView(context);
+    suffixTextView.setId(R.id.textinput_suffix_text);
+    suffixTextView.setLayoutParams(
+        new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.BOTTOM));
+    ViewCompat.setAccessibilityLiveRegion(
+        suffixTextView, ViewCompat.ACCESSIBILITY_LIVE_REGION_POLITE);
+
+    endLayout.addView(suffixTextView);
+    endLayout.addView(errorIconView);
+    endLayout.addView(endIconFrame);
+
     setHelperTextEnabled(helperTextEnabled);
     setHelperText(helperText);
     setHelperTextTextAppearance(helperTextTextAppearance);
@@ -605,6 +745,10 @@ public class TextInputLayout extends LinearLayout {
     setErrorTextAppearance(errorTextAppearance);
     setCounterTextAppearance(counterTextAppearance);
     setCounterOverflowTextAppearance(counterOverflowTextAppearance);
+    setPrefixText(prefixText);
+    setPrefixTextAppearance(prefixTextAppearance);
+    setSuffixText(suffixText);
+    setSuffixTextAppearance(suffixTextAppearance);
 
     if (a.hasValue(R.styleable.TextInputLayout_errorTextColor)) {
       setErrorTextColor(a.getColorStateList(R.styleable.TextInputLayout_errorTextColor));
@@ -622,10 +766,16 @@ public class TextInputLayout extends LinearLayout {
       setCounterOverflowTextColor(
           a.getColorStateList(R.styleable.TextInputLayout_counterOverflowTextColor));
     }
+    if (a.hasValue(R.styleable.TextInputLayout_prefixTextColor)) {
+      setPrefixTextColor(a.getColorStateList(R.styleable.TextInputLayout_prefixTextColor));
+    }
+    if (a.hasValue(R.styleable.TextInputLayout_suffixTextColor)) {
+      setSuffixTextColor(a.getColorStateList(R.styleable.TextInputLayout_suffixTextColor));
+    }
     setCounterEnabled(counterEnabled);
 
-    setBoxBackgroundMode(
-        a.getInt(R.styleable.TextInputLayout_boxBackgroundMode, BOX_BACKGROUND_NONE));
+    setEnabled(a.getBoolean(R.styleable.TextInputLayout_android_enabled, true));
+
     a.recycle();
 
     // For accessibility, consider TextInputLayout itself to be a simple container for an EditText,
@@ -634,7 +784,8 @@ public class TextInputLayout extends LinearLayout {
   }
 
   @Override
-  public void addView(View child, int index, final ViewGroup.LayoutParams params) {
+  public void addView(
+      @NonNull View child, int index, @NonNull final ViewGroup.LayoutParams params) {
     if (child instanceof EditText) {
       // Make sure that the EditText is vertically at the bottom, so that it sits on the
       // EditText's underline
@@ -655,7 +806,7 @@ public class TextInputLayout extends LinearLayout {
   }
 
   @NonNull
-  private Drawable getBoxBackground() {
+  MaterialShapeDrawable getBoxBackground() {
     if (boxBackgroundMode == BOX_BACKGROUND_FILLED || boxBackgroundMode == BOX_BACKGROUND_OUTLINE) {
       return boxBackground;
     }
@@ -748,11 +899,11 @@ public class TextInputLayout extends LinearLayout {
   }
 
   /**
-   * Set the outline box's stroke color.
+   * Set the outline box's stroke focused color.
    *
    * <p>Calling this method when not in outline box mode will do nothing.
    *
-   * @param boxStrokeColor the color to use for the box's stroke
+   * @param boxStrokeColor the color to use for the box's stroke when focused
    * @see #getBoxStrokeColor()
    */
   public void setBoxStrokeColor(@ColorInt int boxStrokeColor) {
@@ -763,9 +914,9 @@ public class TextInputLayout extends LinearLayout {
   }
 
   /**
-   * Returns the box's stroke color.
+   * Returns the box's stroke focused color.
    *
-   * @return the color used for the box's stroke
+   * @return the color used for the box's stroke when focused
    * @see #setBoxStrokeColor(int)
    */
   public int getBoxStrokeColor() {
@@ -773,10 +924,58 @@ public class TextInputLayout extends LinearLayout {
   }
 
   /**
+   * Set the box's stroke color state list.
+   *
+   * @param boxStrokeColorStateList the color state list to use for the box's stroke
+   */
+  public void setBoxStrokeColorStateList(@NonNull ColorStateList boxStrokeColorStateList) {
+    if (boxStrokeColorStateList.isStateful()) {
+      defaultStrokeColor = boxStrokeColorStateList.getDefaultColor();
+      disabledColor =
+          boxStrokeColorStateList.getColorForState(new int[] {-android.R.attr.state_enabled}, -1);
+      hoveredStrokeColor =
+          boxStrokeColorStateList.getColorForState(new int[] {android.R.attr.state_hovered}, -1);
+      focusedStrokeColor =
+          boxStrokeColorStateList.getColorForState(new int[] {android.R.attr.state_focused}, -1);
+    } else if (focusedStrokeColor != boxStrokeColorStateList.getDefaultColor()) {
+      // If attribute boxStrokeColor is not a color state list but only a single value, its value
+      // will be applied to the box's focus state.
+      focusedStrokeColor = boxStrokeColorStateList.getDefaultColor();
+    }
+    updateTextInputBoxState();
+  }
+
+  /**
+   * Set the outline box's stroke color when an error is being displayed.
+   *
+   * <p>Calling this method when not in outline box mode will do nothing.
+   *
+   * @param strokeErrorColor the error color to use for the box's stroke
+   * @see #getBoxStrokeErrorColor()
+   */
+  public void setBoxStrokeErrorColor(@Nullable ColorStateList strokeErrorColor) {
+    if (this.strokeErrorColor != strokeErrorColor) {
+      this.strokeErrorColor = strokeErrorColor;
+      updateTextInputBoxState();
+    }
+  }
+
+  /**
+   * Returns the box's stroke color when an error is being displayed.
+   *
+   * @attr ref com.google.android.material.R.styleable#TextInputLayout_boxStrokeErrorColor
+   * @see #setBoxStrokeErrorColor(ColorStateList)
+   */
+  @Nullable
+  public ColorStateList getBoxStrokeErrorColor() {
+    return strokeErrorColor;
+  }
+
+  /**
    * Set the resource used for the filled box's background color.
    *
    * <p>Note: The background color is only supported for filled boxes. When used with box variants
-   * other than {@link BoxBackgroundMode#BOX_BACKGROUND_FILLED}, the box background color may not 
+   * other than {@link BoxBackgroundMode#BOX_BACKGROUND_FILLED}, the box background color may not
    * work as intended.
    *
    * @param boxBackgroundColorId the resource to use for the box's background color
@@ -851,15 +1050,17 @@ public class TextInputLayout extends LinearLayout {
       float boxCornerRadiusTopEnd,
       float boxCornerRadiusBottomStart,
       float boxCornerRadiusBottomEnd) {
-    if (shapeAppearanceModel.getTopLeftCorner().getCornerSize() != boxCornerRadiusTopStart
-        || shapeAppearanceModel.getTopRightCorner().getCornerSize() != boxCornerRadiusTopEnd
-        || shapeAppearanceModel.getBottomRightCorner().getCornerSize() != boxCornerRadiusBottomEnd
-        || shapeAppearanceModel.getBottomLeftCorner().getCornerSize()
-            != boxCornerRadiusBottomStart) {
-      shapeAppearanceModel.getTopLeftCorner().setCornerSize(boxCornerRadiusTopStart);
-      shapeAppearanceModel.getTopRightCorner().setCornerSize(boxCornerRadiusTopEnd);
-      shapeAppearanceModel.getBottomRightCorner().setCornerSize(boxCornerRadiusBottomEnd);
-      shapeAppearanceModel.getBottomLeftCorner().setCornerSize(boxCornerRadiusBottomStart);
+    if (boxBackground.getTopLeftCornerResolvedSize() != boxCornerRadiusTopStart
+        || boxBackground.getTopRightCornerResolvedSize() != boxCornerRadiusTopEnd
+        || boxBackground.getBottomRightCornerResolvedSize() != boxCornerRadiusBottomEnd
+        || boxBackground.getBottomLeftCornerResolvedSize() != boxCornerRadiusBottomStart) {
+      shapeAppearanceModel =
+          shapeAppearanceModel.toBuilder()
+              .setTopLeftCornerSize(boxCornerRadiusTopStart)
+              .setTopRightCornerSize(boxCornerRadiusTopEnd)
+              .setBottomRightCornerSize(boxCornerRadiusBottomEnd)
+              .setBottomLeftCornerSize(boxCornerRadiusBottomStart)
+              .build();
       applyBoxAttributes();
     }
   }
@@ -871,7 +1072,7 @@ public class TextInputLayout extends LinearLayout {
    * @see #setBoxCornerRadii(float, float, float, float)
    */
   public float getBoxCornerRadiusTopStart() {
-    return shapeAppearanceModel.getTopLeftCorner().getCornerSize();
+    return boxBackground.getTopLeftCornerResolvedSize();
   }
 
   /**
@@ -881,7 +1082,7 @@ public class TextInputLayout extends LinearLayout {
    * @see #setBoxCornerRadii(float, float, float, float)
    */
   public float getBoxCornerRadiusTopEnd() {
-    return shapeAppearanceModel.getTopRightCorner().getCornerSize();
+    return boxBackground.getTopRightCornerResolvedSize();
   }
 
   /**
@@ -891,7 +1092,7 @@ public class TextInputLayout extends LinearLayout {
    * @see #setBoxCornerRadii(float, float, float, float)
    */
   public float getBoxCornerRadiusBottomEnd() {
-    return shapeAppearanceModel.getBottomLeftCorner().getCornerSize();
+    return boxBackground.getBottomLeftCornerResolvedSize();
   }
 
   /**
@@ -901,52 +1102,7 @@ public class TextInputLayout extends LinearLayout {
    * @see #setBoxCornerRadii(float, float, float, float)
    */
   public float getBoxCornerRadiusBottomStart() {
-    return shapeAppearanceModel.getBottomRightCorner().getCornerSize();
-  }
-
-  /**
-   * Adjust the corner size based on the stroke width to maintain GradientDrawable's behavior.
-   * MaterialShapeDrawable internally adjusts the corner size so that the corner size does not
-   * depend on the stroke width. GradientDrawable does not account for stroke width, so this causes
-   * a visual diff when migrating from GradientDrawable to MaterialShapeDrawable. This method
-   * reverts the corner size adjustment in MaterialShapeDrawable to maintain the visual behavior
-   * from GradientDrawable for now.
-   */
-  private void adjustCornerSizeForStrokeWidth() {
-    float strokeInset = boxBackgroundMode == BOX_BACKGROUND_OUTLINE ? boxStrokeWidthPx / 2f : 0;
-    if (strokeInset <= 0f) {
-      return; // Only adjust the corner size if there's a stroke inset.
-    }
-
-    float cornerRadiusTopLeft = shapeAppearanceModel.getTopLeftCorner().getCornerSize();
-    cornerAdjustedShapeAppearanceModel
-        .getTopLeftCorner()
-        .setCornerSize(cornerRadiusTopLeft + strokeInset);
-
-    float cornerRadiusTopRight = shapeAppearanceModel.getTopRightCorner().getCornerSize();
-    cornerAdjustedShapeAppearanceModel
-        .getTopRightCorner()
-        .setCornerSize(cornerRadiusTopRight + strokeInset);
-
-    float cornerRadiusBottomRight = shapeAppearanceModel.getBottomRightCorner().getCornerSize();
-    cornerAdjustedShapeAppearanceModel
-        .getBottomRightCorner()
-        .setCornerSize(cornerRadiusBottomRight + strokeInset);
-
-    float cornerRadiusBottomLeft = shapeAppearanceModel.getBottomLeftCorner().getCornerSize();
-    cornerAdjustedShapeAppearanceModel
-        .getBottomLeftCorner()
-        .setCornerSize(cornerRadiusBottomLeft + strokeInset);
-
-    ensureCornerAdjustedShapeAppearanceModel();
-  }
-
-  private void ensureCornerAdjustedShapeAppearanceModel() {
-    if (boxBackgroundMode != BOX_BACKGROUND_NONE
-        && getBoxBackground() instanceof MaterialShapeDrawable) {
-      ((MaterialShapeDrawable) getBoxBackground())
-          .setShapeAppearanceModel(cornerAdjustedShapeAppearanceModel);
-    }
+    return boxBackground.getBottomRightCornerResolvedSize();
   }
 
   /**
@@ -1004,7 +1160,7 @@ public class TextInputLayout extends LinearLayout {
       throw new IllegalArgumentException("We already have an EditText, can only have one");
     }
 
-    if (!(editText instanceof TextInputEditText)) {
+    if (endIconMode != END_ICON_DROPDOWN_MENU && !(editText instanceof TextInputEditText)) {
       Log.i(
           LOG_TAG,
           "EditText added is not a TextInputEditText. Please switch to using that"
@@ -1028,7 +1184,7 @@ public class TextInputLayout extends LinearLayout {
     this.editText.addTextChangedListener(
         new TextWatcher() {
           @Override
-          public void afterTextChanged(Editable s) {
+          public void afterTextChanged(@NonNull Editable s) {
             updateLabelState(!restoringSavedState);
             if (counterEnabled) {
               updateCounter(s.length());
@@ -1066,9 +1222,19 @@ public class TextInputLayout extends LinearLayout {
 
     indicatorViewController.adjustIndicatorPadding();
 
-    updateIconViewOnEditTextAttached(startIconView);
-    updateIconViewOnEditTextAttached(endIconView);
+    startLayout.bringToFront();
+    endLayout.bringToFront();
+    endIconFrame.bringToFront();
+    errorIconView.bringToFront();
     dispatchOnEditTextAttached();
+    updatePrefixTextViewPadding();
+    updateSuffixTextViewPadding();
+
+    // Only call setEnabled on the edit text if the layout is disabled, to prevent reenabling an
+    // already disabled edit text.
+    if (!isEnabled()) {
+      editText.setEnabled(false);
+    }
 
     // Update the label visibility with no animation, but force a state change
     updateLabelState(false, true);
@@ -1262,8 +1428,11 @@ public class TextInputLayout extends LinearLayout {
    * @attr ref com.google.android.material.R.styleable#TextInputLayout_hintTextColor
    */
   public void setHintTextColor(@Nullable ColorStateList hintTextColor) {
-    if (collapsingTextHelper.getCollapsedTextColor() != hintTextColor) {
-      collapsingTextHelper.setCollapsedTextColor(hintTextColor);
+    if (focusedTextColor != hintTextColor) {
+      if (defaultHintTextColor == null) {
+        collapsingTextHelper.setCollapsedTextColor(hintTextColor);
+      }
+
       focusedTextColor = hintTextColor;
 
       if (editText != null) {
@@ -1279,7 +1448,7 @@ public class TextInputLayout extends LinearLayout {
    */
   @Nullable
   public ColorStateList getHintTextColor() {
-    return collapsingTextHelper.getCollapsedTextColor();
+    return focusedTextColor;
   }
 
   /** Sets the text color used by the hint in both the collapsed and expanded states. */
@@ -1433,6 +1602,76 @@ public class TextInputLayout extends LinearLayout {
       indicatorViewController.showError(errorText);
     } else {
       indicatorViewController.hideError();
+    }
+  }
+
+  /**
+   * Set the drawable to use for the error icon.
+   *
+   * @param resId resource id of the drawable to set, or 0 to clear the icon
+   * @attr ref com.google.android.material.R.styleable#TextInputLayout_errorIconDrawable
+   */
+  public void setErrorIconDrawable(@DrawableRes int resId) {
+    setErrorIconDrawable(resId != 0 ? AppCompatResources.getDrawable(getContext(), resId) : null);
+  }
+
+  /**
+   * Set the drawable to use for the error icon.
+   *
+   * @param errorIconDrawable Drawable to set, may be null to clear the icon
+   * @attr ref com.google.android.material.R.styleable#TextInputLayout_errorIconDrawable
+   */
+  public void setErrorIconDrawable(@Nullable Drawable errorIconDrawable) {
+    errorIconView.setImageDrawable(errorIconDrawable);
+    setErrorIconVisible(errorIconDrawable != null && indicatorViewController.isErrorEnabled());
+  }
+
+  /**
+   * Returns the drawable currently used for the error icon.
+   *
+   * @see #setErrorIconDrawable(Drawable)
+   * @attr ref com.google.android.material.R.styleable#TextInputLayout_errorIconDrawable
+   */
+  @Nullable
+  public Drawable getErrorIconDrawable() {
+    return errorIconView.getDrawable();
+  }
+
+  /**
+   * Applies a tint to the error icon drawable.
+   *
+   * @param errorIconTintList the tint to apply, may be null to clear tint
+   * @attr ref com.google.android.material.R.styleable#TextInputLayout_errorIconTint
+   */
+  public void setErrorIconTintList(@Nullable ColorStateList errorIconTintList) {
+    this.errorIconTintList = errorIconTintList;
+    Drawable icon = errorIconView.getDrawable();
+    if (icon != null) {
+      icon = DrawableCompat.wrap(icon).mutate();
+      DrawableCompat.setTintList(icon, errorIconTintList);
+    }
+
+    if (errorIconView.getDrawable() != icon) {
+      errorIconView.setImageDrawable(icon);
+    }
+  }
+
+  /**
+   * Specifies the blending mode used to apply tint to the end icon drawable. The default mode is
+   * {@link PorterDuff.Mode#SRC_IN}.
+   *
+   * @param errorIconTintMode the blending mode used to apply the tint, may be null to clear tint
+   * @attr ref com.google.android.material.R.styleable#TextInputLayout_errorIconTintMode
+   */
+  public void setErrorIconTintMode(@Nullable PorterDuff.Mode errorIconTintMode) {
+    Drawable icon = errorIconView.getDrawable();
+    if (icon != null) {
+      icon = DrawableCompat.wrap(icon).mutate();
+      DrawableCompat.setTintMode(icon, errorIconTintMode);
+    }
+
+    if (errorIconView.getDrawable() != icon) {
+      errorIconView.setImageDrawable(icon);
     }
   }
 
@@ -1618,8 +1857,8 @@ public class TextInputLayout extends LinearLayout {
   }
 
   private static void updateCounterContentDescription(
-      Context context,
-      TextView counterView,
+      @NonNull Context context,
+      @NonNull TextView counterView,
       int length,
       int counterMaxLength,
       boolean counterOverflowed) {
@@ -1632,6 +1871,175 @@ public class TextInputLayout extends LinearLayout {
             counterMaxLength));
   }
 
+  /**
+   * Sets prefix text that will be displayed in the input area when the hint is collapsed before
+   * text is entered. If the {@code prefix} is {@code null}, any previous prefix text will be hidden
+   * and no prefix text will be shown.
+   *
+   * @param prefixText Prefix text to display
+   * @see #getPrefixText()
+   */
+  public void setPrefixText(@Nullable final CharSequence prefixText) {
+    this.prefixText = TextUtils.isEmpty(prefixText) ? null : prefixText;
+    prefixTextView.setText(prefixText);
+    updatePrefixTextVisibility();
+  }
+
+  /**
+   * Returns the prefix text that was set to be displayed with {@link #setPrefixText(CharSequence)},
+   * or <code>null</code> if there is no prefix text.
+   *
+   * @see #setPrefixText(CharSequence)
+   */
+  @Nullable
+  public CharSequence getPrefixText() {
+    return prefixText;
+  }
+
+  /**
+   * Returns the prefix text view.
+   *
+   * <p>Note: In order for the prefix to work correctly, text should always be set only via {@link
+   * #setPrefixText(CharSequence)}, instead of on the {@link TextView} directly.
+   *
+   * @see #setPrefixText(CharSequence)
+   */
+  @NonNull
+  public TextView getPrefixTextView() {
+    return prefixTextView;
+  }
+
+  private void updatePrefixTextVisibility() {
+    prefixTextView.setVisibility((prefixText != null && !isHintExpanded()) ? VISIBLE : GONE);
+    updateDummyDrawables();
+  }
+
+  /**
+   * Sets the text color used by the prefix text in all states.
+   *
+   * @attr ref com.google.android.material.R.styleable#TextInputLayout_prefixTextColor
+   */
+  public void setPrefixTextColor(@NonNull ColorStateList prefixTextColor) {
+    prefixTextView.setTextColor(prefixTextColor);
+  }
+
+  /**
+   * Returns the ColorStateList used for the prefix text.
+   *
+   * @attr ref com.google.android.material.R.styleable#TextInputLayout_prefixTextColor
+   */
+  @Nullable
+  public ColorStateList getPrefixTextColor() {
+    return prefixTextView.getTextColors();
+  }
+
+  /**
+   * Sets the text color and size for the prefix text from the specified TextAppearance resource.
+   *
+   * @attr ref com.google.android.material.R.styleable#TextInputLayout_prefixTextAppearance
+   */
+  public void setPrefixTextAppearance(@StyleRes int prefixTextAppearance) {
+    TextViewCompat.setTextAppearance(prefixTextView, prefixTextAppearance);
+  }
+
+  private void updatePrefixTextViewPadding() {
+    if (editText == null) {
+      return;
+    }
+    prefixTextView.setPadding(
+        isStartIconVisible() ? 0 : editText.getPaddingLeft(),
+        this.editText.getCompoundPaddingTop(),
+        prefixTextView.getCompoundPaddingRight(),
+        this.editText.getCompoundPaddingBottom());
+  }
+
+  /**
+   * Sets suffix text that will be displayed in the input area when the hint is collapsed before
+   * text is entered. If the {@code suffix} is {@code null}, any previous suffix text will be hidden
+   * and no suffix text will be shown.
+   *
+   * @param suffixText Suffix text to display
+   * @see #getSuffixText()
+   */
+  public void setSuffixText(@Nullable final CharSequence suffixText) {
+    this.suffixText = TextUtils.isEmpty(suffixText) ? null : suffixText;
+    suffixTextView.setText(suffixText);
+    updateSuffixTextVisibility();
+  }
+
+  /**
+   * Returns the suffix text that was set to be displayed with {@link #setSuffixText(CharSequence)},
+   * or <code>null</code> if there is no suffix text.
+   *
+   * @see #setSuffixText(CharSequence)
+   */
+  @Nullable
+  public CharSequence getSuffixText() {
+    return suffixText;
+  }
+
+  /**
+   * Returns the suffix text view.
+   *
+   * <p>Note: In order for the suffix to work correctly, text should always be set only via {@link
+   * #setSuffixText(CharSequence)}, instead of on the {@link TextView} directly.
+   *
+   * @see #setSuffixText(CharSequence)
+   */
+  @NonNull
+  public TextView getSuffixTextView() {
+    return suffixTextView;
+  }
+
+  private void updateSuffixTextVisibility() {
+    int oldSuffixVisibility = suffixTextView.getVisibility();
+    boolean visible = suffixText != null && !isHintExpanded();
+    suffixTextView.setVisibility(visible ? VISIBLE : GONE);
+    if (oldSuffixVisibility != suffixTextView.getVisibility()) {
+      getEndIconDelegate().onSuffixVisibilityChanged(visible);
+    }
+    updateDummyDrawables();
+  }
+
+  /**
+   * Sets the text color used by the suffix text in all states.
+   *
+   * @attr ref com.google.android.material.R.styleable#TextInputLayout_suffixTextColor
+   */
+  public void setSuffixTextColor(@NonNull ColorStateList suffixTextColor) {
+    suffixTextView.setTextColor(suffixTextColor);
+  }
+
+  /**
+   * Returns the ColorStateList used for the suffix text.
+   *
+   * @attr ref com.google.android.material.R.styleable#TextInputLayout_suffixTextColor
+   */
+  @Nullable
+  public ColorStateList getSuffixTextColor() {
+    return suffixTextView.getTextColors();
+  }
+
+  /**
+   * Sets the text color and size for the suffix text from the specified TextAppearance resource.
+   *
+   * @attr ref com.google.android.material.R.styleable#TextInputLayout_suffixTextAppearance
+   */
+  public void setSuffixTextAppearance(@StyleRes int suffixTextAppearance) {
+    TextViewCompat.setTextAppearance(suffixTextView, suffixTextAppearance);
+  }
+
+  private void updateSuffixTextViewPadding() {
+    if (editText == null) {
+      return;
+    }
+    suffixTextView.setPadding(
+        suffixTextView.getPaddingLeft(),
+        editText.getPaddingTop(),
+        (isEndIconVisible() || isErrorIconVisible()) ? 0 : editText.getPaddingRight(),
+        editText.getPaddingBottom());
+  }
+
   @Override
   public void setEnabled(boolean enabled) {
     // Since we're set to addStatesFromChildren, we need to make sure that we set all
@@ -1641,7 +2049,7 @@ public class TextInputLayout extends LinearLayout {
     super.setEnabled(enabled);
   }
 
-  private static void recursiveSetEnabled(final ViewGroup vg, final boolean enabled) {
+  private static void recursiveSetEnabled(@NonNull final ViewGroup vg, final boolean enabled) {
     for (int i = 0, count = vg.getChildCount(); i < count; i++) {
       final View child = vg.getChildAt(i);
       child.setEnabled(enabled);
@@ -1685,7 +2093,8 @@ public class TextInputLayout extends LinearLayout {
     }
   }
 
-  void setTextAppearanceCompatWithErrorFallback(TextView textView, @StyleRes int textAppearance) {
+  void setTextAppearanceCompatWithErrorFallback(
+      @NonNull TextView textView, @StyleRes int textAppearance) {
     boolean useDefaultColor = false;
     try {
       TextViewCompat.setTextAppearance(textView, textAppearance);
@@ -1726,11 +2135,13 @@ public class TextInputLayout extends LinearLayout {
     }
   }
 
-  private Rect calculateCollapsedTextBounds(Rect rect) {
+  @NonNull
+  private Rect calculateCollapsedTextBounds(@NonNull Rect rect) {
     if (editText == null) {
       throw new IllegalStateException();
     }
     Rect bounds = tmpBoundsRect;
+    boolean isRtl = ViewCompat.getLayoutDirection(this) == ViewCompat.LAYOUT_DIRECTION_RTL;
 
     bounds.bottom = rect.bottom;
     switch (boxBackgroundMode) {
@@ -1740,9 +2151,9 @@ public class TextInputLayout extends LinearLayout {
         bounds.right = rect.right - editText.getPaddingRight();
         return bounds;
       case BOX_BACKGROUND_FILLED:
-        bounds.left = rect.left + editText.getCompoundPaddingLeft();
+        bounds.left = getFilledLabelLeftBound(rect.left, isRtl);
         bounds.top = rect.top + boxCollapsedPaddingTopPx;
-        bounds.right = rect.right - editText.getCompoundPaddingRight();
+        bounds.right = getFilledLabelRightBound(rect.right, isRtl);
         return bounds;
       default:
         bounds.left = rect.left + editText.getCompoundPaddingLeft();
@@ -1752,7 +2163,26 @@ public class TextInputLayout extends LinearLayout {
     }
   }
 
-  private Rect calculateExpandedTextBounds(Rect rect) {
+  private int getFilledLabelLeftBound(int rectLeft, boolean isRtl) {
+    int left = rectLeft + editText.getCompoundPaddingLeft();
+    if (prefixText != null && !isRtl) {
+      // Label should be vertically aligned with prefix
+      left = left - prefixTextView.getMeasuredWidth() + prefixTextView.getPaddingLeft();
+    }
+    return left;
+  }
+
+  private int getFilledLabelRightBound(int rectRight, boolean isRtl) {
+    int right = rectRight - editText.getCompoundPaddingRight();
+    if (prefixText != null && isRtl) {
+      // Label should be vertically aligned with prefix if in RTL
+      right = right + prefixTextView.getMeasuredWidth() + prefixTextView.getPaddingRight();
+    }
+    return right;
+  }
+
+  @NonNull
+  private Rect calculateExpandedTextBounds(@NonNull Rect rect) {
     if (editText == null) {
       throw new IllegalStateException();
     }
@@ -1769,14 +2199,15 @@ public class TextInputLayout extends LinearLayout {
     return bounds;
   }
 
-  private int calculateExpandedLabelTop(Rect rect, float labelHeight) {
-    if (boxBackgroundMode == BOX_BACKGROUND_FILLED) {
+  private int calculateExpandedLabelTop(@NonNull Rect rect, float labelHeight) {
+    if (isSingleLineFilledTextField()) {
       return (int) (rect.centerY() - labelHeight / 2);
     }
     return rect.top + editText.getCompoundPaddingTop();
   }
 
-  private int calculateExpandedLabelBottom(Rect rect, Rect bounds, float labelHeight) {
+  private int calculateExpandedLabelBottom(
+      @NonNull Rect rect, @NonNull Rect bounds, float labelHeight) {
     if (boxBackgroundMode == BOX_BACKGROUND_FILLED) {
       // Add the label's height to the top of the bounds rather than calculating from the vertical
       // center for both the top and bottom of the label. This prevents a potential fractional loss
@@ -1784,6 +2215,11 @@ public class TextInputLayout extends LinearLayout {
       return (int) (bounds.top + labelHeight);
     }
     return rect.bottom - editText.getCompoundPaddingBottom();
+  }
+
+  private boolean isSingleLineFilledTextField() {
+    return boxBackgroundMode == BOX_BACKGROUND_FILLED
+        && (VERSION.SDK_INT < 16 || editText.getMinLines() <= 1);
   }
 
   /*
@@ -1806,11 +2242,18 @@ public class TextInputLayout extends LinearLayout {
       return;
     }
 
+    boxBackground.setShapeAppearanceModel(shapeAppearanceModel);
+
     if (canDrawOutlineStroke()) {
       boxBackground.setStroke(boxStrokeWidthPx, boxStrokeColor);
     }
 
-    boxBackground.setFillColor(ColorStateList.valueOf(calculateBoxBackgroundColor()));
+    boxBackgroundColor = calculateBoxBackgroundColor();
+    boxBackground.setFillColor(ColorStateList.valueOf(boxBackgroundColor));
+    if (endIconMode == END_ICON_DROPDOWN_MENU) {
+      // Makes sure the exposed dropdown menu gets updated properly.
+      editText.getBackground().invalidateSelf();
+    }
     applyBoxUnderlineAttributes();
     invalidate();
   }
@@ -1870,26 +2313,27 @@ public class TextInputLayout extends LinearLayout {
   }
 
   static class SavedState extends AbsSavedState {
-    CharSequence error;
+    @Nullable CharSequence error;
     boolean isEndIconChecked;
 
     SavedState(Parcelable superState) {
       super(superState);
     }
 
-    SavedState(Parcel source, ClassLoader loader) {
+    SavedState(@NonNull Parcel source, ClassLoader loader) {
       super(source, loader);
       error = TextUtils.CHAR_SEQUENCE_CREATOR.createFromParcel(source);
       isEndIconChecked = (source.readInt() == 1);
     }
 
     @Override
-    public void writeToParcel(Parcel dest, int flags) {
+    public void writeToParcel(@NonNull Parcel dest, int flags) {
       super.writeToParcel(dest, flags);
       TextUtils.writeToParcel(error, dest, flags);
       dest.writeInt(isEndIconChecked ? 1 : 0);
     }
 
+    @NonNull
     @Override
     public String toString() {
       return "TextInputLayout.SavedState{"
@@ -1901,16 +2345,19 @@ public class TextInputLayout extends LinearLayout {
 
     public static final Creator<SavedState> CREATOR =
         new ClassLoaderCreator<SavedState>() {
+          @NonNull
           @Override
-          public SavedState createFromParcel(Parcel in, ClassLoader loader) {
+          public SavedState createFromParcel(@NonNull Parcel in, ClassLoader loader) {
             return new SavedState(in, loader);
           }
 
+          @Nullable
           @Override
-          public SavedState createFromParcel(Parcel in) {
+          public SavedState createFromParcel(@NonNull Parcel in) {
             return new SavedState(in, null);
           }
 
+          @NonNull
           @Override
           public SavedState[] newArray(int size) {
             return new SavedState[size];
@@ -1939,9 +2386,16 @@ public class TextInputLayout extends LinearLayout {
     super.onRestoreInstanceState(ss.getSuperState());
     setError(ss.error);
     if (ss.isEndIconChecked) {
-      endIconView.performClick();
-      // Skip animation
-      endIconView.jumpDrawablesToCurrentState();
+      // Make sure the end icon is not clicked before the application is visible.
+      endIconView.post(
+          new Runnable() {
+            @Override
+            public void run() {
+              endIconView.performClick();
+              // Skip animation
+              endIconView.jumpDrawablesToCurrentState();
+            }
+          });
     }
     requestLayout();
   }
@@ -2001,21 +2455,10 @@ public class TextInputLayout extends LinearLayout {
   @Override
   protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
     super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-    setEditTextHeightAndDummyDrawables();
-  }
 
-  private void setEditTextHeightAndDummyDrawables() {
-    if (editText == null) {
-      return;
-    }
-
-    // We need to make sure that the EditText's height is at least the same as the end or start
-    // icon's height (whichever is bigger). This ensures focus works properly, and there is no
-    // visual jump if the icon is enabled/disabled.
-    int maxIconHeight =
-        Math.max(endIconView.getMeasuredHeight(), startIconView.getMeasuredHeight());
-    if (editText.getMeasuredHeight() < maxIconHeight) {
-      editText.setMinimumHeight(maxIconHeight);
+    boolean updatedHeight = updateEditTextHeightBasedOnIcon();
+    boolean updatedIcon = updateDummyDrawables();
+    if (updatedHeight || updatedIcon) {
       editText.post(
           new Runnable() {
             @Override
@@ -2024,8 +2467,23 @@ public class TextInputLayout extends LinearLayout {
             }
           });
     }
+  }
 
-    updateIconDummyDrawables();
+  private boolean updateEditTextHeightBasedOnIcon() {
+    if (editText == null) {
+      return false;
+    }
+
+    // We need to make sure that the EditText's height is at least the same as the end or start
+    // icon's height (whichever is bigger). This ensures focus works properly, and there is no
+    // visual jump if the icon is enabled/disabled.
+    int maxIconHeight = Math.max(endLayout.getMeasuredHeight(), startLayout.getMeasuredHeight());
+    if (editText.getMeasuredHeight() < maxIconHeight) {
+      editText.setMinimumHeight(maxIconHeight);
+      return true;
+    }
+
+    return false;
   }
 
   /**
@@ -2058,6 +2516,7 @@ public class TextInputLayout extends LinearLayout {
     } else {
       setStartIconVisible(false);
       setStartIconOnClickListener(null);
+      setStartIconOnLongClickListener(null);
       setStartIconContentDescription(null);
     }
   }
@@ -2076,13 +2535,26 @@ public class TextInputLayout extends LinearLayout {
 
   /**
    * Sets the start icon's functionality that is performed when the start icon is clicked. The icon
-   * will not be clickable if its listener is null.
+   * will not be clickable if its click and long click listeners are null.
    *
    * @param startIconOnClickListener the {@link android.view.View.OnClickListener} the start icon
    *     view will have, or null to clear it.
    */
-  public void setStartIconOnClickListener(OnClickListener startIconOnClickListener) {
-    setIconOnClickListener(startIconView, startIconOnClickListener);
+  public void setStartIconOnClickListener(@Nullable OnClickListener startIconOnClickListener) {
+    setIconOnClickListener(startIconView, startIconOnClickListener, startIconOnLongClickListener);
+  }
+
+  /**
+   * Sets the start icon's functionality that is performed when the start icon is long clicked. The
+   * icon will not be clickable if its click and long click listeners are null.
+   *
+   * @param startIconOnLongClickListener the {@link android.view.View.OnLongClickListener} the start
+   *     icon view will have, or null to clear it.
+   */
+  public void setStartIconOnLongClickListener(
+      @Nullable OnLongClickListener startIconOnLongClickListener) {
+    this.startIconOnLongClickListener = startIconOnLongClickListener;
+    setIconOnLongClickListener(startIconView, startIconOnLongClickListener);
   }
 
   /**
@@ -2093,7 +2565,8 @@ public class TextInputLayout extends LinearLayout {
   public void setStartIconVisible(boolean visible) {
     if (isStartIconVisible() != visible) {
       startIconView.setVisibility(visible ? View.VISIBLE : View.GONE);
-      updateIconDummyDrawables();
+      updatePrefixTextViewPadding();
+      updateDummyDrawables();
     }
   }
 
@@ -2104,6 +2577,29 @@ public class TextInputLayout extends LinearLayout {
    */
   public boolean isStartIconVisible() {
     return startIconView.getVisibility() == View.VISIBLE;
+  }
+
+  /**
+   * Sets the current start icon to be checkable or not.
+   *
+   * <p>If the icon works just as a button and the fact that it's checked or not doesn't affect its
+   * behavior, such as the clear text end icon, calling this method is encouraged so that screen
+   * readers will not announce the icon's checked state.
+   *
+   * @param startIconCheckable whether the icon should be checkable
+   * @attr com.google.android.material.R.styleable#TextInputLayout_startIconCheckable
+   */
+  public void setStartIconCheckable(boolean startIconCheckable) {
+    startIconView.setCheckable(startIconCheckable);
+  }
+
+  /**
+   * Returns whether the start icon is checkable.
+   *
+   * @see #setStartIconCheckable(boolean)
+   */
+  public boolean isStartIconCheckable() {
+    return startIconView.isCheckable();
   }
 
   /**
@@ -2193,7 +2689,15 @@ public class TextInputLayout extends LinearLayout {
     int previousEndIconMode = this.endIconMode;
     this.endIconMode = endIconMode;
     setEndIconVisible(endIconMode != END_ICON_NONE);
-    getEndIconDelegate().initialize();
+    if (getEndIconDelegate().isBoxBackgroundModeSupported(boxBackgroundMode)) {
+      getEndIconDelegate().initialize();
+    } else {
+      throw new IllegalStateException(
+          "The current box background mode "
+              + boxBackgroundMode
+              + " is not supported by the end icon mode "
+              + endIconMode);
+    }
     applyEndIconTint();
     dispatchOnEndIconChanged(previousEndIconMode);
   }
@@ -2211,24 +2715,39 @@ public class TextInputLayout extends LinearLayout {
   }
 
   /**
-   * Sets the end icon's functionality that is performed when the icon is clicked.
+   * Sets the end icon's functionality that is performed when the icon is clicked. The icon will not
+   * be clickable if its click and long click listeners are null.
    *
    * @param endIconOnClickListener the {@link android.view.View.OnClickListener} the end icon view
    *     will have
    */
   public void setEndIconOnClickListener(@Nullable OnClickListener endIconOnClickListener) {
-    setIconOnClickListener(endIconView, endIconOnClickListener);
+    setIconOnClickListener(endIconView, endIconOnClickListener, endIconOnLongClickListener);
   }
 
   /**
-   * Sets the current end icon to be VISIBLE or INVISIBLE.
+   * Sets the end icon's functionality that is performed when the end icon is long clicked. The icon
+   * will not be clickable if its click and long click listeners are null.
+   *
+   * @param endIconOnLongClickListener the {@link android.view.View.OnLongClickListener} the start
+   *     icon view will have, or null to clear it.
+   */
+  public void setEndIconOnLongClickListener(
+      @Nullable OnLongClickListener endIconOnLongClickListener) {
+    this.endIconOnLongClickListener = endIconOnLongClickListener;
+    setIconOnLongClickListener(endIconView, endIconOnLongClickListener);
+  }
+
+  /**
+   * Sets the current end icon to be VISIBLE or GONE.
    *
    * @param visible whether the icon should be set to visible
    */
   public void setEndIconVisible(boolean visible) {
     if (isEndIconVisible() != visible) {
-      endIconView.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
-      updateIconDummyDrawables();
+      endIconView.setVisibility(visible ? View.VISIBLE : View.GONE);
+      updateSuffixTextViewPadding();
+      updateDummyDrawables();
     }
   }
 
@@ -2238,7 +2757,39 @@ public class TextInputLayout extends LinearLayout {
    * @see #setEndIconVisible(boolean)
    */
   public boolean isEndIconVisible() {
-    return endIconView.getVisibility() == View.VISIBLE;
+    return endIconFrame.getVisibility() == VISIBLE && endIconView.getVisibility() == VISIBLE;
+  }
+
+  /**
+   * Sets the current end icon's state to be activated or not.
+   *
+   * @param endIconActivated whether the icon should be activated
+   */
+  public void setEndIconActivated(boolean endIconActivated) {
+    endIconView.setActivated(endIconActivated);
+  }
+
+  /**
+   * Sets the current end icon to be checkable or not.
+   *
+   * <p>If the icon works just as a button and the fact that it's checked or not doesn't affect its
+   * behavior, such as the clear text end icon, calling this method is encouraged so that screen
+   * readers will not announce the icon's checked state.
+   *
+   * @param endIconCheckable whether the icon should be checkable
+   * @attr com.google.android.material.R.styleable#TextInputLayout_endIconCheckable
+   */
+  public void setEndIconCheckable(boolean endIconCheckable) {
+    endIconView.setCheckable(endIconCheckable);
+  }
+
+  /**
+   * Returns whether the end icon is checkable.
+   *
+   * @see #setEndIconCheckable(boolean)
+   */
+  public boolean isEndIconCheckable() {
+    return endIconView.isCheckable();
   }
 
   /**
@@ -2390,10 +2941,10 @@ public class TextInputLayout extends LinearLayout {
    *
    * @param listener listener to add
    */
-  public void addOnEditTextAttachedListener(OnEditTextAttachedListener listener) {
+  public void addOnEditTextAttachedListener(@NonNull OnEditTextAttachedListener listener) {
     editTextAttachedListeners.add(listener);
     if (editText != null) {
-      listener.onEditTextAttached();
+      listener.onEditTextAttached(this);
     }
   }
 
@@ -2450,7 +3001,8 @@ public class TextInputLayout extends LinearLayout {
    * explain the action of the password visibility toggle.
    *
    * @param resId Resource ID of a content description string to set, or 0 to clear the description
-   * @attr ref com.google.android.material.R.styleable#TextInputLayout_passwordToggleContentDescription
+   * @attr ref
+   *     com.google.android.material.R.styleable#TextInputLayout_passwordToggleContentDescription
    * @deprecated Use {@link #setEndIconContentDescription(int)} instead.
    */
   @Deprecated
@@ -2466,7 +3018,8 @@ public class TextInputLayout extends LinearLayout {
    * explain the action of the password visibility toggle.
    *
    * @param description Content description to set, or null to clear the content description
-   * @attr ref com.google.android.material.R.styleable#TextInputLayout_passwordToggleContentDescription
+   * @attr ref
+   *     com.google.android.material.R.styleable#TextInputLayout_passwordToggleContentDescription
    * @deprecated Use {@link #setEndIconContentDescription(CharSequence)} instead.
    */
   @Deprecated
@@ -2575,7 +3128,9 @@ public class TextInputLayout extends LinearLayout {
    *
    * @param shouldSkipAnimations true if the password toggle indicator icon should not animate
    *     changes
-   * @deprecated Use {@link #setEndIconOnClickListener(OnClickListener)} instead.
+   * @deprecated The password toggle will show as checked or unchecked depending on whether the
+   *     {@link EditText}'s {@link android.text.method.TransformationMethod} is of type {@link
+   *     android.text.method.PasswordTransformationMethod}
    */
   @Deprecated
   public void passwordVisibilityToggleRequested(boolean shouldSkipAnimations) {
@@ -2600,6 +3155,7 @@ public class TextInputLayout extends LinearLayout {
     }
   }
 
+  @NonNull
   CheckableImageButton getEndIconView() {
     return endIconView;
   }
@@ -2611,12 +3167,8 @@ public class TextInputLayout extends LinearLayout {
 
   private void dispatchOnEditTextAttached() {
     for (OnEditTextAttachedListener listener : editTextAttachedListeners) {
-      listener.onEditTextAttached();
+      listener.onEditTextAttached(this);
     }
-  }
-
-  private boolean hasStartIcon() {
-    return getStartIconDrawable() != null;
   }
 
   private void applyStartIconTint() {
@@ -2634,7 +3186,20 @@ public class TextInputLayout extends LinearLayout {
 
   private void dispatchOnEndIconChanged(@EndIconMode int previousIcon) {
     for (OnEndIconChangedListener listener : endIconChangedListeners) {
-      listener.onEndIconChanged(previousIcon);
+      listener.onEndIconChanged(this, previousIcon);
+    }
+  }
+
+  private void tintEndIconOnError(boolean tintEndIconOnError) {
+    if (tintEndIconOnError && getEndIconDrawable() != null) {
+      // Setting the tint here instead of calling setEndIconTintList() in order to preserve and
+      // restore the icon's original tint.
+      Drawable endIconDrawable = DrawableCompat.wrap(getEndIconDrawable()).mutate();
+      DrawableCompat.setTint(
+          endIconDrawable, indicatorViewController.getErrorViewCurrentTextColor());
+      endIconView.setImageDrawable(endIconDrawable);
+    } else {
+      applyEndIconTint();
     }
   }
 
@@ -2645,64 +3210,110 @@ public class TextInputLayout extends LinearLayout {
 
   /*
    * We need to add a dummy drawable as the start and/or end compound drawables so that the text is
-   * indented and doesn't display below the icon views.
+   * indented and doesn't display below the icon or suffix/prefix views.
    */
-  private void updateIconDummyDrawables() {
+  private boolean updateDummyDrawables() {
     if (editText == null) {
-      return;
+      return false;
     }
 
-    // Update start icon drawable if needed.
-    if (hasStartIcon() && isStartIconVisible()) {
-      startIconDummyDrawable = new ColorDrawable();
-      int right =
-          startIconView.getMeasuredWidth()
-              - editText.getPaddingLeft()
-              + MarginLayoutParamsCompat.getMarginEnd(
-                  ((MarginLayoutParams) startIconView.getLayoutParams()));
-      startIconDummyDrawable.setBounds(0, 0, right, 1);
+    boolean updatedIcon = false;
+    // Update start dummy drawable if needed.
+    if (shouldUpdateStartDummyDrawable()) {
+      int right = startLayout.getMeasuredWidth() - editText.getPaddingLeft();
+      if (startDummyDrawable == null || startDummyDrawableWidth != right) {
+        startDummyDrawable = new ColorDrawable();
+        startDummyDrawableWidth = right;
+        startDummyDrawable.setBounds(0, 0, startDummyDrawableWidth, 1);
+      }
       final Drawable[] compounds = TextViewCompat.getCompoundDrawablesRelative(editText);
-      TextViewCompat.setCompoundDrawablesRelative(
-          editText, startIconDummyDrawable, compounds[1], compounds[2], compounds[3]);
-    } else if (startIconDummyDrawable != null) {
+      if (compounds[0] != startDummyDrawable) {
+        TextViewCompat.setCompoundDrawablesRelative(
+            editText, startDummyDrawable, compounds[1], compounds[2], compounds[3]);
+        updatedIcon = true;
+      }
+    } else if (startDummyDrawable != null) {
       // Remove the dummy start compound drawable if it exists and clear it.
       final Drawable[] compounds = TextViewCompat.getCompoundDrawablesRelative(editText);
       TextViewCompat.setCompoundDrawablesRelative(
           editText, null, compounds[1], compounds[2], compounds[3]);
-      startIconDummyDrawable = null;
+      startDummyDrawable = null;
+      updatedIcon = true;
     }
 
-    // Update end icon drawable if needed.
-    if (hasEndIcon() && isEndIconVisible()) {
-      if (endIconDummyDrawable == null) {
-        endIconDummyDrawable = new ColorDrawable();
-        int right =
-            endIconView.getMeasuredWidth()
-                - editText.getPaddingRight()
+    // Update end dummy drawable if needed.
+    if (shouldUpdateEndDummyDrawable()) {
+      int right = suffixTextView.getMeasuredWidth() - editText.getPaddingRight();
+      View iconView = getEndIconToUpdateDummyDrawable();
+      if (iconView != null) {
+        right =
+            right
+                + iconView.getMeasuredWidth()
                 + MarginLayoutParamsCompat.getMarginStart(
-                    ((MarginLayoutParams) endIconView.getLayoutParams()));
-        endIconDummyDrawable.setBounds(0, 0, right, 1);
+                    ((MarginLayoutParams) iconView.getLayoutParams()));
       }
       final Drawable[] compounds = TextViewCompat.getCompoundDrawablesRelative(editText);
-      // Store the user defined end compound drawable so that we can restore it later.
-      if (compounds[2] != endIconDummyDrawable) {
-        originalEditTextEndDrawable = compounds[2];
+      if (endDummyDrawable != null && endDummyDrawableWidth != right) {
+        // If endLayout only changed width, update dummy drawable here so that we don't override
+        // the currently saved originalEditTextEndDrawable.
+        endDummyDrawableWidth = right;
+        endDummyDrawable.setBounds(0, 0, endDummyDrawableWidth, 1);
+        TextViewCompat.setCompoundDrawablesRelative(
+            editText, compounds[0], compounds[1], endDummyDrawable, compounds[3]);
+        updatedIcon = true;
+      } else {
+        if (endDummyDrawable == null) {
+          endDummyDrawable = new ColorDrawable();
+          endDummyDrawableWidth = right;
+          endDummyDrawable.setBounds(0, 0, endDummyDrawableWidth, 1);
+        }
+        // Store the user defined end compound drawable so that we can restore it later.
+        if (compounds[2] != endDummyDrawable) {
+          originalEditTextEndDrawable = compounds[2];
+          TextViewCompat.setCompoundDrawablesRelative(
+              editText, compounds[0], compounds[1], endDummyDrawable, compounds[3]);
+          updatedIcon = true;
+        }
       }
-      TextViewCompat.setCompoundDrawablesRelative(
-          editText, compounds[0], compounds[1], endIconDummyDrawable, compounds[3]);
-    } else if (endIconDummyDrawable != null) {
+    } else if (endDummyDrawable != null) {
       // Remove the dummy end compound drawable if it exists and clear it.
       final Drawable[] compounds = TextViewCompat.getCompoundDrawablesRelative(editText);
-      if (compounds[2] == endIconDummyDrawable) {
+      if (compounds[2] == endDummyDrawable) {
         TextViewCompat.setCompoundDrawablesRelative(
             editText, compounds[0], compounds[1], originalEditTextEndDrawable, compounds[3]);
+        updatedIcon = true;
       }
-      endIconDummyDrawable = null;
+      endDummyDrawable = null;
+    }
+
+    return updatedIcon;
+  }
+
+  private boolean shouldUpdateStartDummyDrawable() {
+    return (getStartIconDrawable() != null || prefixText != null)
+        && (startLayout.getMeasuredWidth() > 0);
+  }
+
+  private boolean shouldUpdateEndDummyDrawable() {
+    return (errorIconView.getVisibility() == VISIBLE
+            || (hasEndIcon() && isEndIconVisible())
+            || suffixText != null)
+        && (endLayout.getMeasuredWidth() > 0);
+  }
+
+  @Nullable
+  private CheckableImageButton getEndIconToUpdateDummyDrawable() {
+    if (errorIconView.getVisibility() == VISIBLE) {
+      return errorIconView;
+    } else if (hasEndIcon() && isEndIconVisible()) {
+      return endIconView;
+    } else {
+      return null;
     }
   }
 
   private void applyIconTint(
-      CheckableImageButton iconView,
+      @NonNull CheckableImageButton iconView,
       boolean hasIconTintList,
       ColorStateList iconTintList,
       boolean hasIconTintMode,
@@ -2724,30 +3335,33 @@ public class TextInputLayout extends LinearLayout {
     }
   }
 
-  private void setIconOnClickListener(@NonNull View iconView, OnClickListener onClickListener) {
+  private static void setIconOnClickListener(
+      @NonNull View iconView,
+      @Nullable OnClickListener onClickListener,
+      @Nullable OnLongClickListener onLongClickListener) {
     iconView.setOnClickListener(onClickListener);
-    iconView.setFocusable(onClickListener != null);
-    iconView.setClickable(onClickListener != null);
+    setIconClickable(iconView, onLongClickListener);
   }
 
-  private void updateIconViewOnEditTextAttached(@NonNull View iconView) {
-    ViewCompat.setPaddingRelative(
-        iconView, 0, getIconViewPaddingTop(iconView), 0, getIconViewPaddingBottom(iconView));
-    iconView.bringToFront();
+  private static void setIconOnLongClickListener(
+      @NonNull View iconView, @Nullable OnLongClickListener onLongClickListener) {
+    iconView.setOnLongClickListener(onLongClickListener);
+    setIconClickable(iconView, onLongClickListener);
   }
 
-  private int getIconViewPaddingTop(@NonNull View iconView) {
-    if (boxBackgroundMode == BOX_BACKGROUND_FILLED) {
-      return iconView.getPaddingTop();
-    }
-    return editText != null ? editText.getPaddingTop() : 0;
-  }
-
-  private int getIconViewPaddingBottom(@NonNull View iconView) {
-    if (boxBackgroundMode == BOX_BACKGROUND_FILLED) {
-      return iconView.getPaddingBottom();
-    }
-    return editText != null ? editText.getPaddingBottom() : 0;
+  private static void setIconClickable(
+      @NonNull View iconView, @Nullable OnLongClickListener onLongClickListener) {
+    boolean iconClickable = ViewCompat.hasOnClickListeners(iconView);
+    boolean iconLongClickable = onLongClickListener != null;
+    boolean iconFocusable = iconClickable || iconLongClickable;
+    iconView.setFocusable(iconFocusable);
+    iconView.setClickable(iconClickable);
+    iconView.setLongClickable(iconLongClickable);
+    ViewCompat.setImportantForAccessibility(
+        iconView,
+        iconFocusable
+            ? ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_YES
+            : ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);
   }
 
   @Override
@@ -2773,7 +3387,7 @@ public class TextInputLayout extends LinearLayout {
     }
   }
 
-  private void updateBoxUnderlineBounds(Rect bounds) {
+  private void updateBoxUnderlineBounds(@NonNull Rect bounds) {
     if (boxUnderline != null) {
       int top = bounds.bottom - boxStrokeWidthFocusedPx;
       boxUnderline.setBounds(bounds.left, top, bounds.right, bounds.bottom);
@@ -2781,13 +3395,13 @@ public class TextInputLayout extends LinearLayout {
   }
 
   @Override
-  public void draw(Canvas canvas) {
+  public void draw(@NonNull Canvas canvas) {
     super.draw(canvas);
     drawHint(canvas);
     drawBoxUnderline(canvas);
   }
 
-  private void drawHint(Canvas canvas) {
+  private void drawHint(@NonNull Canvas canvas) {
     if (hintEnabled) {
       collapsingTextHelper.draw(canvas);
     }
@@ -2815,6 +3429,8 @@ public class TextInputLayout extends LinearLayout {
     if (cutoutEnabled()) {
       openCutout();
     }
+    updatePrefixTextVisibility();
+    updateSuffixTextVisibility();
   }
 
   private boolean cutoutEnabled() {
@@ -2840,7 +3456,7 @@ public class TextInputLayout extends LinearLayout {
     }
   }
 
-  private void applyCutoutPadding(RectF cutoutBounds) {
+  private void applyCutoutPadding(@NonNull RectF cutoutBounds) {
     cutoutBounds.left -= boxLabelCutoutPaddingPx;
     cutoutBounds.top -= boxLabelCutoutPaddingPx;
     cutoutBounds.right += boxLabelCutoutPaddingPx;
@@ -2873,7 +3489,9 @@ public class TextInputLayout extends LinearLayout {
     }
 
     // Drawable state has changed so see if we need to update the label
-    updateLabelState(ViewCompat.isLaidOut(this) && isEnabled());
+    if (editText != null) {
+      updateLabelState(ViewCompat.isLaidOut(this) && isEnabled());
+    }
     updateEditTextBackground();
     updateTextInputBoxState();
 
@@ -2896,9 +3514,17 @@ public class TextInputLayout extends LinearLayout {
     if (!isEnabled()) {
       boxStrokeColor = disabledColor;
     } else if (indicatorViewController.errorShouldBeShown()) {
-      boxStrokeColor = indicatorViewController.getErrorViewCurrentTextColor();
+      if (strokeErrorColor != null) {
+        updateStrokeErrorColor(hasFocus, isHovered);
+      } else {
+        boxStrokeColor = indicatorViewController.getErrorViewCurrentTextColor();
+      }
     } else if (counterOverflowed && counterView != null) {
-      boxStrokeColor = counterView.getCurrentTextColor();
+      if (strokeErrorColor != null) {
+        updateStrokeErrorColor(hasFocus, isHovered);
+      } else {
+        boxStrokeColor = counterView.getCurrentTextColor();
+      }
     } else if (hasFocus) {
       boxStrokeColor = focusedStrokeColor;
     } else if (isHovered) {
@@ -2907,20 +3533,32 @@ public class TextInputLayout extends LinearLayout {
       boxStrokeColor = defaultStrokeColor;
     }
 
+    setErrorIconVisible(
+        getErrorIconDrawable() != null
+            && indicatorViewController.isErrorEnabled()
+            && indicatorViewController.errorShouldBeShown());
+
+    // Update icons tints
+    updateIconColorOnState(errorIconView, errorIconTintList);
+    updateIconColorOnState(startIconView, startIconTintList);
+    updateIconColorOnState(endIconView, endIconTintList);
+
+    if (getEndIconDelegate().shouldTintIconOnError()) {
+      tintEndIconOnError(indicatorViewController.errorShouldBeShown());
+    }
+
     // Update the text box's stroke width based on the current state.
-    if ((isHovered || hasFocus) && isEnabled()) {
+    if (hasFocus && isEnabled()) {
       boxStrokeWidthPx = boxStrokeWidthFocusedPx;
-      adjustCornerSizeForStrokeWidth();
     } else {
       boxStrokeWidthPx = boxStrokeWidthDefaultPx;
-      adjustCornerSizeForStrokeWidth();
     }
 
     // Update the text box's background color based on the current state.
     if (boxBackgroundMode == BOX_BACKGROUND_FILLED) {
       if (!isEnabled()) {
         boxBackgroundColor = disabledFilledBackgroundColor;
-      } else if (isHovered) {
+      } else if (isHovered && !hasFocus) {
         boxBackgroundColor = hoveredFilledBackgroundColor;
       } else {
         boxBackgroundColor = defaultFilledBackgroundColor;
@@ -2928,6 +3566,53 @@ public class TextInputLayout extends LinearLayout {
     }
 
     applyBoxAttributes();
+  }
+
+  private void updateStrokeErrorColor(boolean hasFocus, boolean isHovered) {
+    int defaultStrokeErrorColor = strokeErrorColor.getDefaultColor();
+    int hoveredStrokeErrorColor =
+        strokeErrorColor.getColorForState(
+            new int[] {android.R.attr.state_hovered, android.R.attr.state_enabled},
+            defaultStrokeErrorColor);
+    int focusedStrokeErrorColor =
+        strokeErrorColor.getColorForState(
+            new int[] {android.R.attr.state_activated, android.R.attr.state_enabled},
+            defaultStrokeErrorColor);
+    if (hasFocus) {
+      boxStrokeColor = focusedStrokeErrorColor;
+    } else if (isHovered) {
+      boxStrokeColor = hoveredStrokeErrorColor;
+    } else {
+      boxStrokeColor = defaultStrokeErrorColor;
+    }
+  }
+
+  private void setErrorIconVisible(boolean errorIconVisible) {
+    errorIconView.setVisibility(errorIconVisible ? VISIBLE : GONE);
+    endIconFrame.setVisibility(errorIconVisible ? GONE : VISIBLE);
+    updateSuffixTextViewPadding();
+    if (!hasEndIcon()) {
+      updateDummyDrawables();
+    }
+  }
+
+  private boolean isErrorIconVisible() {
+    return errorIconView.getVisibility() == VISIBLE;
+  }
+
+  private void updateIconColorOnState(
+      CheckableImageButton iconView, ColorStateList colorStateList) {
+    Drawable icon = iconView.getDrawable();
+    if (iconView.getDrawable() == null || colorStateList == null || !colorStateList.isStateful()) {
+      return;
+    }
+
+    int color =
+        colorStateList.getColorForState(this.getDrawableState(), colorStateList.getDefaultColor());
+
+    icon = DrawableCompat.wrap(icon).mutate();
+    DrawableCompat.setTintList(icon, ColorStateList.valueOf(color));
+    iconView.setImageDrawable(icon);
   }
 
   private void expandHint(boolean animate) {
@@ -2943,6 +3628,8 @@ public class TextInputLayout extends LinearLayout {
       closeCutout();
     }
     hintExpanded = true;
+    updatePrefixTextVisibility();
+    updateSuffixTextVisibility();
   }
 
   @VisibleForTesting
@@ -2957,7 +3644,7 @@ public class TextInputLayout extends LinearLayout {
       this.animator.addUpdateListener(
           new ValueAnimator.AnimatorUpdateListener() {
             @Override
-            public void onAnimationUpdate(ValueAnimator animator) {
+            public void onAnimationUpdate(@NonNull ValueAnimator animator) {
               collapsingTextHelper.setExpansionFraction((float) animator.getAnimatedValue());
             }
           });
@@ -2992,9 +3679,9 @@ public class TextInputLayout extends LinearLayout {
   }
 
   /**
-   * An AccessibilityDelegate intended to be set on an {@link EditText} or {@link TextInputEditText}
-   * with {@link
-   * TextInputLayout#setTextInputAccessibilityDelegate(TextInputLayout.AccessibilityDelegate) to
+   * An {@link AccessibilityDelegate} intended to be set on an {@link EditText} or {@link
+   * TextInputEditText} with {@link
+   * TextInputLayout#setTextInputAccessibilityDelegate(TextInputLayout.AccessibilityDelegate)} to
    * provide attributes for accessibility that are managed by {@link TextInputLayout}.
    */
   public static class AccessibilityDelegate extends AccessibilityDelegateCompat {
@@ -3005,7 +3692,8 @@ public class TextInputLayout extends LinearLayout {
     }
 
     @Override
-    public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfoCompat info) {
+    public void onInitializeAccessibilityNodeInfo(
+        @NonNull View host, @NonNull AccessibilityNodeInfoCompat info) {
       super.onInitializeAccessibilityNodeInfo(host, info);
       EditText editText = layout.getEditText();
       CharSequence text = (editText != null) ? editText.getText() : null;
@@ -3031,17 +3719,6 @@ public class TextInputLayout extends LinearLayout {
       if (contentInvalid) {
         info.setError(showingError ? errorText : counterDesc);
         info.setContentInvalid(true);
-      }
-    }
-
-    @Override
-    public void onPopulateAccessibilityEvent(View host, AccessibilityEvent event) {
-      super.onPopulateAccessibilityEvent(host, event);
-      EditText editText = layout.getEditText();
-      CharSequence text = (editText != null) ? editText.getText() : null;
-      CharSequence eventText = TextUtils.isEmpty(text) ? layout.getHint() : text;
-      if (!TextUtils.isEmpty(eventText)) {
-        event.getText().add(eventText);
       }
     }
   }

@@ -21,7 +21,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Point;
 import android.os.Bundle;
-import com.google.android.material.appbar.CollapsingToolbarLayout;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -32,12 +31,12 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.widget.TextView;
 import androidx.cardview.widget.CardView;
 import com.android.volley.toolbox.NetworkImageView;
+import com.google.android.material.appbar.CollapsingToolbarLayout;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import io.material.demo.shrine.filters.FiltersActivity;
@@ -186,12 +185,7 @@ public class ProductListActivity extends AppCompatActivity {
     }
 
     private final OnClickListener clickListener =
-        new OnClickListener() {
-          @Override
-          public void onClick(View v) {
-            ItemActivity.createItemActivityIntent(v.getContext(), (ProductEntry) v.getTag());
-          }
-        };
+        v -> ItemActivity.createItemActivityIntent(v.getContext(), (ProductEntry) v.getTag());
 
     public void bind(Context context, ProductEntry productEntry, ImageRequester imageRequester) {
       productPriceView.setText(productEntry.price);

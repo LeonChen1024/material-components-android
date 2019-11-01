@@ -21,19 +21,21 @@ import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.Matchers.any;
 
 import androidx.annotation.LayoutRes;
-import com.google.android.material.testapp.DynamicCoordinatorLayoutActivity;
-import com.google.android.material.testapp.R;
-import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import androidx.core.view.ViewCompat;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.ViewStub;
+import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import androidx.test.espresso.UiController;
 import androidx.test.espresso.ViewAction;
 import androidx.test.rule.ActivityTestRule;
+import com.google.android.material.testapp.DynamicCoordinatorLayoutActivity;
+import com.google.android.material.testapp.R;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Rule;
 
 /** Base class for tests that are exercising various aspects of {@link CoordinatorLayout}. */
@@ -45,19 +47,27 @@ public abstract class BaseDynamicCoordinatorLayoutTest {
 
   protected CoordinatorLayout mCoordinatorLayout;
 
+  private int additionalScrollForTouchSlop;
+
+  @Before
+  public void calculateAdditionalScrollForTouchSlop() {
+    ViewConfiguration vc = ViewConfiguration.get(activityTestRule.getActivity());
+    additionalScrollForTouchSlop = vc.getScaledTouchSlop();
+    // The usages don't seem to be totally accurate. Adding a little extra to make sure we scroll
+    // enough.
+    additionalScrollForTouchSlop += 6;
+  }
+
   @After
   public void tearDown() {
     getInstrumentation()
         .runOnMainSync(
-            new Runnable() {
-              @Override
-              public void run() {
-                // Now that the test is done, replace the activity content view with ViewStub so
-                // that it's ready to be replaced for the next test.
-                final DynamicCoordinatorLayoutActivity activity = activityTestRule.getActivity();
-                activity.setContentView(R.layout.dynamic_coordinator_layout);
-                mCoordinatorLayout = null;
-              }
+            () -> {
+              // Now that the test is done, replace the activity content view with ViewStub so
+              // that it's ready to be replaced for the next test.
+              final DynamicCoordinatorLayoutActivity activity = activityTestRule.getActivity();
+              activity.setContentView(R.layout.dynamic_coordinator_layout);
+              mCoordinatorLayout = null;
             });
   }
 
@@ -125,5 +135,9 @@ public abstract class BaseDynamicCoordinatorLayoutTest {
         uiController.loopMainThreadUntilIdle();
       }
     };
+  }
+
+  protected int getAdditionalScrollForTouchSlop() {
+    return additionalScrollForTouchSlop;
   }
 }

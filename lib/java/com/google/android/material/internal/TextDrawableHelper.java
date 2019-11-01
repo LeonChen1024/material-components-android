@@ -24,9 +24,9 @@ import android.graphics.Typeface;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RestrictTo;
+import android.text.TextPaint;
 import com.google.android.material.resources.TextAppearance;
 import com.google.android.material.resources.TextAppearanceFontCallback;
-import android.text.TextPaint;
 import java.lang.ref.WeakReference;
 
 /**
@@ -67,14 +67,22 @@ public class TextDrawableHelper {
 
   private float textWidth;
   private boolean textWidthDirty = true;
-  private WeakReference<TextDrawableDelegate> delegate = new WeakReference<>(null);
+  @Nullable private WeakReference<TextDrawableDelegate> delegate = new WeakReference<>(null);
   @Nullable private TextAppearance textAppearance;
+
+  /**
+   * Please provide a delegate if your text font may load asynchronously.
+   */
+  public TextDrawableHelper(@Nullable TextDrawableDelegate delegate) {
+    setDelegate(delegate);
+  }
 
   /** Sets the delegate that owns this TextDrawableHelper. */
   public void setDelegate(@Nullable TextDrawableDelegate delegate) {
     this.delegate = new WeakReference<>(delegate);
   }
 
+  @NonNull
   public TextPaint getTextPaint() {
     return textPaint;
   }
@@ -110,6 +118,7 @@ public class TextDrawableHelper {
    *
    * @see #setTextAppearance(TextAppearance, Context)
    */
+  @Nullable
   public TextAppearance getTextAppearance() {
     return textAppearance;
   }

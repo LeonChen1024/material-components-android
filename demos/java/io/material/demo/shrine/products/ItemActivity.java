@@ -19,17 +19,16 @@ package io.material.demo.shrine.products;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
-import com.google.android.material.snackbar.Snackbar;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import android.util.Log;
 import android.view.Menu;
-import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.ArrayAdapter;
 import android.widget.Spinner;
 import android.widget.TextView;
 import com.android.volley.toolbox.NetworkImageView;
+import com.google.android.material.snackbar.Snackbar;
 
 /**
  * Activity that displays an individual product, including an image, name, and a short description.
@@ -96,12 +95,7 @@ public class ItemActivity extends AppCompatActivity {
   }
 
   private final OnClickListener clickListener =
-      new OnClickListener() {
-        @Override
-        public void onClick(View v) {
-          Snackbar.make(v, fabMessage, Snackbar.LENGTH_SHORT).show();
-        }
-      };
+      v -> Snackbar.make(v, fabMessage, Snackbar.LENGTH_SHORT).show();
 
   private void initSpinner() {
     Spinner spinner = (Spinner) findViewById(R.id.QuantitySpinner);

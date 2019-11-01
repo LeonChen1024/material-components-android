@@ -16,22 +16,6 @@
 
 package com.google.android.material.textfield;
 
-import static com.google.android.material.testutils.TestUtilsActions.setEnabled;
-import static com.google.android.material.testutils.TestUtilsMatchers.withTextColor;
-import static com.google.android.material.testutils.TestUtilsMatchers.withTypeface;
-import static com.google.android.material.testutils.TextInputLayoutActions.setBoxBackgroundColor;
-import static com.google.android.material.testutils.TextInputLayoutActions.setBoxCornerRadii;
-import static com.google.android.material.testutils.TextInputLayoutActions.setBoxStrokeColor;
-import static com.google.android.material.testutils.TextInputLayoutActions.setCounterEnabled;
-import static com.google.android.material.testutils.TextInputLayoutActions.setCounterMaxLength;
-import static com.google.android.material.testutils.TextInputLayoutActions.setError;
-import static com.google.android.material.testutils.TextInputLayoutActions.setErrorEnabled;
-import static com.google.android.material.testutils.TextInputLayoutActions.setErrorTextAppearance;
-import static com.google.android.material.testutils.TextInputLayoutActions.setHelperText;
-import static com.google.android.material.testutils.TextInputLayoutActions.setHelperTextEnabled;
-import static com.google.android.material.testutils.TextInputLayoutActions.setHint;
-import static com.google.android.material.testutils.TextInputLayoutActions.setHintTextAppearance;
-import static com.google.android.material.testutils.TextInputLayoutActions.setTypeface;
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.clearText;
 import static androidx.test.espresso.action.ViewActions.click;
@@ -42,6 +26,23 @@ import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.isEnabled;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
+import static com.google.android.material.testutils.TestUtilsActions.setEnabled;
+import static com.google.android.material.testutils.TestUtilsMatchers.withTextColor;
+import static com.google.android.material.testutils.TestUtilsMatchers.withTypeface;
+import static com.google.android.material.testutils.TextInputLayoutActions.setBoxBackgroundColor;
+import static com.google.android.material.testutils.TextInputLayoutActions.setBoxCornerRadii;
+import static com.google.android.material.testutils.TextInputLayoutActions.setBoxStrokeColor;
+import static com.google.android.material.testutils.TextInputLayoutActions.setBoxStrokeErrorColor;
+import static com.google.android.material.testutils.TextInputLayoutActions.setCounterEnabled;
+import static com.google.android.material.testutils.TextInputLayoutActions.setCounterMaxLength;
+import static com.google.android.material.testutils.TextInputLayoutActions.setError;
+import static com.google.android.material.testutils.TextInputLayoutActions.setErrorEnabled;
+import static com.google.android.material.testutils.TextInputLayoutActions.setErrorTextAppearance;
+import static com.google.android.material.testutils.TextInputLayoutActions.setHelperText;
+import static com.google.android.material.testutils.TextInputLayoutActions.setHelperTextEnabled;
+import static com.google.android.material.testutils.TextInputLayoutActions.setHint;
+import static com.google.android.material.testutils.TextInputLayoutActions.setHintTextAppearance;
+import static com.google.android.material.testutils.TextInputLayoutActions.setTypeface;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -50,6 +51,7 @@ import static org.junit.Assert.assertTrue;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
@@ -57,25 +59,23 @@ import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Parcelable;
 import androidx.annotation.ColorInt;
-import com.google.android.material.testapp.R;
-import com.google.android.material.testapp.TextInputLayoutActivity;
-import com.google.android.material.testutils.TestUtils;
-import com.google.android.material.testutils.ViewStructureImpl;
 import androidx.core.widget.TextViewCompat;
 import android.text.TextPaint;
 import android.util.AttributeSet;
 import android.util.SparseArray;
-import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.TextView;
 import androidx.test.annotation.UiThreadTest;
-import androidx.test.espresso.NoMatchingViewException;
 import androidx.test.espresso.ViewAssertion;
 import androidx.test.filters.MediumTest;
 import androidx.test.filters.SdkSuppress;
 import androidx.test.rule.ActivityTestRule;
 import androidx.test.runner.AndroidJUnit4;
+import com.google.android.material.testapp.R;
+import com.google.android.material.testapp.TextInputLayoutActivity;
+import com.google.android.material.testutils.TestUtils;
+import com.google.android.material.testutils.ViewStructureImpl;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -320,6 +320,7 @@ public class TextInputLayoutTest {
     final EditText editText = activity.findViewById(R.id.textinput_edittext);
     assertNull(editText.getHint());
   }
+
   @UiThreadTest
   @Test
   public void testDrawableStateChanged() {
@@ -516,6 +517,22 @@ public class TextInputLayoutTest {
   }
 
   @Test
+  public void testOutlineBoxStrokeChangesErrorColor() {
+    ColorStateList cyan = new ColorStateList(new int[][] {new int[] {}}, new int[] {Color.CYAN});
+    ColorStateList green = new ColorStateList(new int[][] {new int[] {}}, new int[] {Color.GREEN});
+    onView(withId(R.id.textinput_box_outline)).perform(setError(ERROR_MESSAGE_1));
+
+    // Change the outline box's stroke error color to cyan.
+    onView(withId(R.id.textinput_box_outline)).perform(setBoxStrokeErrorColor(cyan));
+    // Check that the outline box's stroke error color is cyan.
+    onView(withId(R.id.textinput_box_outline)).check(isBoxStrokeErrorColor(cyan));
+    // Change the outline box's stroke error color to green.
+    onView(withId(R.id.textinput_box_outline)).perform(setBoxStrokeErrorColor(green));
+    // Check that the outline box's stroke error color is green.
+    onView(withId(R.id.textinput_box_outline)).check(isBoxStrokeErrorColor(green));
+  }
+
+  @Test
   public void testOutlineBoxBackgroundChangesColor() {
     @ColorInt int blue = Color.BLUE;
     @ColorInt int yellow = Color.YELLOW;
@@ -600,53 +617,45 @@ public class TextInputLayoutTest {
   }
 
   private static ViewAssertion isHintExpanded(final boolean expanded) {
-    return new ViewAssertion() {
-      @Override
-      public void check(View view, NoMatchingViewException noViewFoundException) {
-        assertTrue(view instanceof TextInputLayout);
-        assertEquals(expanded, ((TextInputLayout) view).isHintExpanded());
-      }
+    return (view, noViewFoundException) -> {
+      assertTrue(view instanceof TextInputLayout);
+      assertEquals(expanded, ((TextInputLayout) view).isHintExpanded());
     };
   }
 
   private static ViewAssertion isBoxStrokeColor(@ColorInt final int boxStrokeColor) {
-    return new ViewAssertion() {
-      @Override
-      public void check(View view, NoMatchingViewException noViewFoundException) {
-        assertTrue(view instanceof TextInputLayout);
-        assertEquals(boxStrokeColor, ((TextInputLayout) view).getBoxStrokeColor());
-      }
+    return (view, noViewFoundException) -> {
+      assertTrue(view instanceof TextInputLayout);
+      assertEquals(boxStrokeColor, ((TextInputLayout) view).getBoxStrokeColor());
+    };
+  }
+
+  private static ViewAssertion isBoxStrokeErrorColor(final ColorStateList boxStrokeColor) {
+    return (view, noViewFoundException) -> {
+      assertTrue(view instanceof TextInputLayout);
+      assertEquals(boxStrokeColor, ((TextInputLayout) view).getBoxStrokeErrorColor());
     };
   }
 
   private static ViewAssertion isBoxBackgroundColor(@ColorInt final int boxBackgroundColor) {
-    return new ViewAssertion() {
-      @Override
-      public void check(View view, NoMatchingViewException noViewFoundException) {
-        assertTrue(view instanceof TextInputLayout);
-        assertEquals(boxBackgroundColor, ((TextInputLayout) view).getBoxBackgroundColor());
-      }
+    return (view, noViewFoundException) -> {
+      assertTrue(view instanceof TextInputLayout);
+      assertEquals(boxBackgroundColor, ((TextInputLayout) view).getBoxBackgroundColor());
     };
   }
 
   private static ViewAssertion isBoxCornerRadiusTopEnd(final float boxCornerRadiusTopEnd) {
-    return new ViewAssertion() {
-      @Override
-      public void check(View view, NoMatchingViewException noViewFoundException) {
-        assertTrue(view instanceof TextInputLayout);
-        assertEquals(
-            boxCornerRadiusTopEnd, ((TextInputLayout) view).getBoxCornerRadiusTopEnd(), 0.01);
-      }
+    return (view, noViewFoundException) -> {
+      assertTrue(view instanceof TextInputLayout);
+      assertEquals(
+          boxCornerRadiusTopEnd, ((TextInputLayout) view).getBoxCornerRadiusTopEnd(), 0.01);
     };
   }
 
   private static ViewAssertion isCutoutOpen(final boolean open) {
-    return new ViewAssertion() {
-      @Override
-      public void check(View view, NoMatchingViewException noViewFoundException) {
-        assertTrue(view instanceof TextInputLayout);
-        assertEquals(open, ((TextInputLayout) view).cutoutIsOpen());
-      }
+    return (view, noViewFoundException) -> {
+      assertTrue(view instanceof TextInputLayout);
+      assertEquals(open, ((TextInputLayout) view).cutoutIsOpen());
     };
   }
 }

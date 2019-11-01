@@ -18,17 +18,19 @@ package com.google.android.material.switchmaterial;
 
 import com.google.android.material.R;
 
-import static com.google.android.material.internal.ThemeEnforcement.createThemedContext;
+import static com.google.android.material.theme.overlay.MaterialThemeOverlay.wrap;
 
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.content.res.TypedArray;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.widget.SwitchCompat;
+import android.util.AttributeSet;
 import com.google.android.material.color.MaterialColors;
 import com.google.android.material.elevation.ElevationOverlayProvider;
 import com.google.android.material.internal.ThemeEnforcement;
-import androidx.appcompat.widget.SwitchCompat;
-import android.util.AttributeSet;
+import com.google.android.material.internal.ViewUtils;
 
 /**
  * A class that creates a Material Themed Switch.
@@ -50,21 +52,22 @@ public class SwitchMaterial extends SwitchCompat {
         new int[] {-android.R.attr.state_enabled, -android.R.attr.state_checked} // [3]
       };
 
-  private final ElevationOverlayProvider elevationOverlayProvider;
+  @NonNull private final ElevationOverlayProvider elevationOverlayProvider;
 
   @Nullable private ColorStateList materialThemeColorsThumbTintList;
   @Nullable private ColorStateList materialThemeColorsTrackTintList;
+  private boolean useMaterialThemeColors;
 
-  public SwitchMaterial(Context context) {
+  public SwitchMaterial(@NonNull Context context) {
     this(context, null);
   }
 
-  public SwitchMaterial(Context context, @Nullable AttributeSet attrs) {
+  public SwitchMaterial(@NonNull Context context, @Nullable AttributeSet attrs) {
     this(context, attrs, R.attr.switchStyle);
   }
 
-  public SwitchMaterial(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
-    super(createThemedContext(context, attrs, defStyleAttr, DEF_STYLE_RES), attrs, defStyleAttr);
+  public SwitchMaterial(@NonNull Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
+    super(wrap(context, attrs, defStyleAttr, DEF_STYLE_RES), attrs, defStyleAttr);
     // Ensure we are using the correctly themed context rather than the context that was passed in.
     context = getContext();
 
@@ -74,10 +77,15 @@ public class SwitchMaterial extends SwitchCompat {
         ThemeEnforcement.obtainStyledAttributes(
             context, attrs, R.styleable.SwitchMaterial, defStyleAttr, DEF_STYLE_RES);
 
-    boolean useMaterialThemeColors =
+    useMaterialThemeColors =
         attributes.getBoolean(R.styleable.SwitchMaterial_useMaterialThemeColors, false);
 
     attributes.recycle();
+  }
+
+  @Override
+  protected void onAttachedToWindow() {
+    super.onAttachedToWindow();
 
     if (useMaterialThemeColors && getThumbTintList() == null) {
       setThumbTintList(getMaterialThemeColorsThumbTintList());
@@ -94,6 +102,7 @@ public class SwitchMaterial extends SwitchCompat {
    * SwitchCompat#setThumbTintList(ColorStateList)} to change tints.
    */
   public void setUseMaterialThemeColors(boolean useMaterialThemeColors) {
+    this.useMaterialThemeColors = useMaterialThemeColors;
     if (useMaterialThemeColors) {
       setThumbTintList(getMaterialThemeColorsThumbTintList());
       setTrackTintList(getMaterialThemeColorsTrackTintList());
@@ -103,27 +112,21 @@ public class SwitchMaterial extends SwitchCompat {
     }
   }
 
-  /**
-   * Returns true if the colors of this {@link SwitchMaterial} are from a Material Theme.
-   *
-   * @return True if the colors of this {@link SwitchMaterial} are from a Material Theme.
-   */
+  /** Returns true if this {@link SwitchMaterial} defaults to colors from a Material Theme. */
   public boolean isUseMaterialThemeColors() {
-    if (materialThemeColorsThumbTintList == null || materialThemeColorsTrackTintList == null) {
-      return false;
-    }
-    return materialThemeColorsThumbTintList.equals(getThumbTintList())
-        && materialThemeColorsTrackTintList.equals(getTrackTintList());
+    return useMaterialThemeColors;
   }
 
   private ColorStateList getMaterialThemeColorsThumbTintList() {
     if (materialThemeColorsThumbTintList == null) {
       int colorSurface = MaterialColors.getColor(this, R.attr.colorSurface);
       int colorControlActivated = MaterialColors.getColor(this, R.attr.colorControlActivated);
-      int thumbElevation =
-          getResources().getDimensionPixelSize(R.dimen.mtrl_switch_thumb_elevation);
+      float thumbElevation = getResources().getDimension(R.dimen.mtrl_switch_thumb_elevation);
+      if (elevationOverlayProvider.isThemeElevationOverlayEnabled()) {
+        thumbElevation += ViewUtils.getParentAbsoluteElevation(this);
+      }
       int colorThumbOff =
-          elevationOverlayProvider.layerOverlayIfNeeded(colorSurface, thumbElevation);
+          elevationOverlayProvider.compositeOverlayIfNeeded(colorSurface, thumbElevation);
 
       int[] switchThumbColorsList = new int[ENABLED_CHECKED_STATES.length];
       switchThumbColorsList[0] =

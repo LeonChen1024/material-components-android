@@ -16,33 +16,72 @@
 
 package com.google.android.material.shape;
 
-import androidx.annotation.RestrictTo;
-import androidx.annotation.RestrictTo.Scope;
+import android.graphics.drawable.Drawable;
+import androidx.annotation.NonNull;
+import android.view.View;
+import com.google.android.material.internal.ViewUtils;
 
-/**
- * Utility methods for {@link MaterialShapeDrawable} and related classes.
- *
- * @hide
- */
-@RestrictTo(Scope.LIBRARY_GROUP)
+/** Utility methods for {@link MaterialShapeDrawable} and related classes. */
 public class MaterialShapeUtils {
 
-  static CornerTreatment createCornerTreatment(@CornerFamily int cornerFamily, int cornerSize) {
+  private MaterialShapeUtils() {}
+
+  @NonNull
+  static CornerTreatment createCornerTreatment(@CornerFamily int cornerFamily) {
     switch (cornerFamily) {
       case CornerFamily.ROUNDED:
-        return new RoundedCornerTreatment(cornerSize);
+        return new RoundedCornerTreatment();
       case CornerFamily.CUT:
-        return new CutCornerTreatment(cornerSize);
+        return new CutCornerTreatment();
       default:
         return createDefaultCornerTreatment();
     }
   }
 
+  @NonNull
   static CornerTreatment createDefaultCornerTreatment() {
-    return new RoundedCornerTreatment(0);
+    return new RoundedCornerTreatment();
   }
 
+  @NonNull
   static EdgeTreatment createDefaultEdgeTreatment() {
     return new EdgeTreatment();
+  }
+
+  /**
+   * If the background of the provided {@code view} is a {@link MaterialShapeDrawable}, sets the
+   * drawable's elevation via {@link MaterialShapeDrawable#setElevation(float)}; otherwise does
+   * nothing.
+   */
+  public static void setElevation(@NonNull View view, float elevation) {
+    Drawable background = view.getBackground();
+    if (background instanceof MaterialShapeDrawable) {
+      ((MaterialShapeDrawable) background).setElevation(elevation);
+    }
+  }
+
+  /**
+   * If the background of the provided {@code view} is a {@link MaterialShapeDrawable}, sets the
+   * drawable's parent absolute elevation (see {@link
+   * MaterialShapeUtils#setParentAbsoluteElevation(View, MaterialShapeDrawable)}); otherwise does
+   * nothing.
+   */
+  public static void setParentAbsoluteElevation(@NonNull View view) {
+    Drawable background = view.getBackground();
+    if (background instanceof MaterialShapeDrawable) {
+      setParentAbsoluteElevation(view, (MaterialShapeDrawable) background);
+    }
+  }
+
+  /**
+   * Updates the {@code materialShapeDrawable} parent absolute elevation via {@link
+   * MaterialShapeDrawable#setParentAbsoluteElevation(float)} to be equal to the absolute elevation
+   * of the parent of the provided {@code view}.
+   */
+  public static void setParentAbsoluteElevation(
+      @NonNull View view, @NonNull MaterialShapeDrawable materialShapeDrawable) {
+    if (materialShapeDrawable.isElevationOverlayEnabled()) {
+      materialShapeDrawable.setParentAbsoluteElevation(ViewUtils.getParentAbsoluteElevation(view));
+    }
   }
 }

@@ -36,12 +36,12 @@ import android.os.Build.VERSION_CODES;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
+import androidx.core.content.ContextCompat;
+import android.view.View;
 import com.google.android.material.ripple.RippleUtils;
 import com.google.android.material.shadow.ShadowViewDelegate;
 import com.google.android.material.shape.MaterialShapeDrawable;
 import com.google.android.material.shape.ShapeAppearanceModel;
-import androidx.core.content.ContextCompat;
-import android.view.View;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -54,9 +54,9 @@ class FloatingActionButtonImplLollipop extends FloatingActionButtonImpl {
   }
 
   @Override
-  void setBackgroundDrawable(
+  void initializeBackgroundDrawable(
       ColorStateList backgroundTint,
-      PorterDuff.Mode backgroundTintMode,
+      @Nullable PorterDuff.Mode backgroundTintMode,
       ColorStateList rippleColor,
       int borderWidth) {
     // Now we need to tint the shape background with the tint
@@ -79,17 +79,16 @@ class FloatingActionButtonImplLollipop extends FloatingActionButtonImpl {
 
     rippleDrawable =
         new RippleDrawable(
-            RippleUtils.convertToRippleDrawableColor(rippleColor), rippleContent, null);
+            RippleUtils.sanitizeRippleDrawableColor(rippleColor), rippleContent, null);
 
     contentBackground = rippleDrawable;
-    shadowViewDelegate.setBackgroundDrawable(contentBackground);
   }
 
   @Override
   void setRippleColor(@Nullable ColorStateList rippleColor) {
     if (rippleDrawable instanceof RippleDrawable) {
       ((RippleDrawable) rippleDrawable)
-          .setColor(RippleUtils.convertToRippleDrawableColor(rippleColor));
+          .setColor(RippleUtils.sanitizeRippleDrawableColor(rippleColor));
     } else {
       super.setRippleColor(rippleColor);
     }
@@ -212,6 +211,7 @@ class FloatingActionButtonImplLollipop extends FloatingActionButtonImpl {
     return false;
   }
 
+  @NonNull
   BorderDrawable createBorderDrawable(int borderWidth, ColorStateList backgroundTint) {
     final Context context = view.getContext();
     BorderDrawable borderDrawable =  new BorderDrawable(checkNotNull(shapeAppearance));
@@ -225,17 +225,15 @@ class FloatingActionButtonImplLollipop extends FloatingActionButtonImpl {
     return borderDrawable;
   }
 
+  @NonNull
   @Override
   MaterialShapeDrawable createShapeDrawable() {
     ShapeAppearanceModel shapeAppearance = checkNotNull(this.shapeAppearance);
-    if (usingDefaultCorner) {
-      shapeAppearance.setCornerRadius(view.getSizeDimension() / 2f);
-    }
     return new AlwaysStatefulMaterialShapeDrawable(shapeAppearance);
   }
 
   @Override
-  void getPadding(Rect rect) {
+  void getPadding(@NonNull Rect rect) {
     if (shadowViewDelegate.isCompatPaddingEnabled()) {
       super.getPadding(rect);
     } else if (!shouldExpandBoundsForA11y()) {

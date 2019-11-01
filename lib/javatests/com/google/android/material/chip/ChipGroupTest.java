@@ -17,9 +17,7 @@ package com.google.android.material.chip;
 
 import com.google.android.material.R;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertTrue;
+import static com.google.common.truth.Truth.assertThat;
 
 import androidx.appcompat.app.AppCompatActivity;
 import android.view.View;
@@ -51,20 +49,41 @@ public class ChipGroupTest {
   @Test
   public void testSetChipSpacing() {
     chipgroup.setChipSpacing(CHIP_GROUP_SPACING);
-    assertEquals(chipgroup.getChipSpacingHorizontal(), chipgroup.getChipSpacingVertical());
-    assertEquals(CHIP_GROUP_SPACING, chipgroup.getChipSpacingHorizontal());
+    assertThat(chipgroup.getChipSpacingHorizontal()).isEqualTo(chipgroup.getChipSpacingVertical());
+    assertThat(chipgroup.getChipSpacingHorizontal()).isEqualTo(CHIP_GROUP_SPACING);
   }
 
   @Test
   public void testSelection() {
     chipgroup.setSingleSelection(true);
-    assertTrue(chipgroup.isSingleSelection());
-    assertEquals(View.NO_ID, chipgroup.getCheckedChipId());
+    assertThat(chipgroup.isSingleSelection()).isTrue();
+    assertThat(chipgroup.getCheckedChipId()).isEqualTo(View.NO_ID);
     int chipId = chipgroup.getChildAt(0).getId();
-    assertNotEquals(View.NO_ID, chipId);
+    assertThat(chipId).isNotEqualTo(View.NO_ID);
     chipgroup.check(chipId);
-    assertEquals(chipId, chipgroup.getCheckedChipId());
+    assertThat(chipId).isEqualTo(chipgroup.getCheckedChipId());
     chipgroup.clearCheck();
-    assertEquals(View.NO_ID, chipgroup.getCheckedChipId());
+    assertThat(chipgroup.getCheckedChipId()).isEqualTo(View.NO_ID);
+  }
+
+  @Test
+  public void testMultipleCheckedChip() {
+    int chip1Id = chipgroup.getChildAt(0).getId();
+    chipgroup.check(chip1Id);
+    int chip2Id = chipgroup.getChildAt(1).getId();
+    chipgroup.check(chip2Id);
+    assertThat(chipgroup.getCheckedChipIds()).hasSize(2);
+  }
+
+  @Test
+  public void testSingleCheckedChip() {
+    chipgroup.setSingleSelection(true);
+    int chipId = chipgroup.getChildAt(2).getId();
+    chipgroup.check(chipId);
+    assertThat(chipgroup.getCheckedChipIds()).hasSize(1);
+    //check that for a single checked chip methods should be equivalent
+    Integer checkedId1 = chipgroup.getCheckedChipIds().get(0);
+    int checkedId2 = chipgroup.getCheckedChipId();
+    assertThat(checkedId1).isEqualTo(checkedId2);
   }
 }

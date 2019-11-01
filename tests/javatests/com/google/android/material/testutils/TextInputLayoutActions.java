@@ -25,16 +25,16 @@ import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import androidx.annotation.ColorInt;
 import androidx.annotation.DimenRes;
-import com.google.android.material.internal.CheckableImageButton;
-import com.google.android.material.testapp.R;
-import com.google.android.material.textfield.TextInputLayout;
-import android.text.method.PasswordTransformationMethod;
+import android.text.method.TransformationMethod;
 import android.view.View;
 import android.view.View.OnClickListener;
-import android.widget.EditText;
+import android.view.View.OnLongClickListener;
 import androidx.test.espresso.UiController;
 import androidx.test.espresso.ViewAction;
 import androidx.test.espresso.matcher.ViewMatchers;
+import com.google.android.material.internal.CheckableImageButton;
+import com.google.android.material.testapp.R;
+import com.google.android.material.textfield.TextInputLayout;
 import org.hamcrest.Matcher;
 
 public class TextInputLayoutActions {
@@ -179,22 +179,25 @@ public class TextInputLayoutActions {
     };
   }
 
-  public static ViewAction setInputTypeToPasswordTransformationMethod() {
+  /** Sets the transformation method. */
+  public static ViewAction setTransformationMethod(
+      final TransformationMethod transformationMethod) {
     return new ViewAction() {
+
       @Override
       public Matcher<View> getConstraints() {
-        return isAssignableFrom(EditText.class);
+        return ViewMatchers.isAssignableFrom(TextInputLayout.class);
       }
 
       @Override
       public String getDescription() {
-        return "Set the input type of the EditText to be of password type";
+        return "Sets the transformation method";
       }
 
       @Override
       public void perform(UiController uiController, View view) {
-        EditText edittext = (EditText) view;
-        edittext.setTransformationMethod(PasswordTransformationMethod.getInstance());
+        TextInputLayout item = (TextInputLayout) view;
+        item.getEditText().setTransformationMethod(transformationMethod);
       }
     };
   }
@@ -215,6 +218,27 @@ public class TextInputLayoutActions {
       public void perform(UiController uiController, View view) {
         TextInputLayout layout = (TextInputLayout) view;
         layout.setEndIconOnClickListener(onClickListener);
+      }
+    };
+  }
+
+  public static ViewAction setEndIconOnLongClickListener(
+      final OnLongClickListener onLongClickListener) {
+    return new ViewAction() {
+      @Override
+      public Matcher<View> getConstraints() {
+        return isAssignableFrom(TextInputLayout.class);
+      }
+
+      @Override
+      public String getDescription() {
+        return "Set end icon OnLongClickListener";
+      }
+
+      @Override
+      public void perform(UiController uiController, View view) {
+        TextInputLayout layout = (TextInputLayout) view;
+        layout.setEndIconOnLongClickListener(onLongClickListener);
       }
     };
   }
@@ -340,6 +364,27 @@ public class TextInputLayoutActions {
     };
   }
 
+  public static ViewAction setStartIconOnLongClickListener(
+      final OnLongClickListener onLongClickListener) {
+    return new ViewAction() {
+      @Override
+      public Matcher<View> getConstraints() {
+        return isAssignableFrom(TextInputLayout.class);
+      }
+
+      @Override
+      public String getDescription() {
+        return "Set a long click listener for the start icon";
+      }
+
+      @Override
+      public void perform(UiController uiController, View view) {
+        TextInputLayout layout = (TextInputLayout) view;
+        layout.setStartIconOnLongClickListener(onLongClickListener);
+      }
+    };
+  }
+
   public static ViewAction setCounterEnabled(final boolean enabled) {
     return new ViewAction() {
       @Override
@@ -376,6 +421,26 @@ public class TextInputLayoutActions {
       public void perform(UiController uiController, View view) {
         TextInputLayout layout = (TextInputLayout) view;
         layout.setCounterMaxLength(maxLength);
+      }
+    };
+  }
+
+  public static ViewAction setBoxStrokeErrorColor(@ColorInt final ColorStateList strokeErrorColor) {
+    return new ViewAction() {
+      @Override
+      public Matcher<View> getConstraints() {
+        return isAssignableFrom(TextInputLayout.class);
+      }
+
+      @Override
+      public String getDescription() {
+        return "Sets the box's stroke error color";
+      }
+
+      @Override
+      public void perform(UiController uiController, View view) {
+        TextInputLayout layout = (TextInputLayout) view;
+        layout.setBoxStrokeErrorColor(strokeErrorColor);
       }
     };
   }
@@ -537,6 +602,96 @@ public class TextInputLayoutActions {
         CheckableImageButton iconView =
             item.findViewById(isEndIcon ? R.id.text_input_end_icon : R.id.text_input_start_icon);
         iconView.performClick();
+      }
+    };
+  }
+
+  /** Long clicks end or start icon. */
+  public static ViewAction longClickIcon(final boolean isEndIcon) {
+    return new ViewAction() {
+
+      @Override
+      public Matcher<View> getConstraints() {
+        return ViewMatchers.isAssignableFrom(TextInputLayout.class);
+      }
+
+      @Override
+      public String getDescription() {
+        return "Long clicks the end or start icon";
+      }
+
+      @Override
+      public void perform(UiController uiController, View view) {
+        TextInputLayout item = (TextInputLayout) view;
+        // Reach in and find the icon view since we don't have a public API to get a reference to it
+        CheckableImageButton iconView =
+            item.findViewById(isEndIcon ? R.id.text_input_end_icon : R.id.text_input_start_icon);
+        iconView.performLongClick();
+      }
+    };
+  }
+
+  /** Skips any animations on the layout. */
+  public static ViewAction skipAnimations() {
+    return new ViewAction() {
+
+      @Override
+      public Matcher<View> getConstraints() {
+        return ViewMatchers.isAssignableFrom(TextInputLayout.class);
+      }
+
+      @Override
+      public String getDescription() {
+        return "Skips any animations.";
+      }
+
+      @Override
+      public void perform(UiController uiController, View view) {
+        view.jumpDrawablesToCurrentState();
+      }
+    };
+  }
+
+  /** Sets prefix. */
+  public static ViewAction setPrefixText(final CharSequence prefixText) {
+    return new ViewAction() {
+
+      @Override
+      public Matcher<View> getConstraints() {
+        return ViewMatchers.isAssignableFrom(TextInputLayout.class);
+      }
+
+      @Override
+      public String getDescription() {
+        return "Sets prefix text.";
+      }
+
+      @Override
+      public void perform(UiController uiController, View view) {
+        TextInputLayout layout = (TextInputLayout) view;
+        layout.setPrefixText(prefixText);
+      }
+    };
+  }
+
+  /** Sets suffix. */
+  public static ViewAction setSuffixText(final CharSequence suffixText) {
+    return new ViewAction() {
+
+      @Override
+      public Matcher<View> getConstraints() {
+        return ViewMatchers.isAssignableFrom(TextInputLayout.class);
+      }
+
+      @Override
+      public String getDescription() {
+        return "Sets suffix text.";
+      }
+
+      @Override
+      public void perform(UiController uiController, View view) {
+        TextInputLayout layout = (TextInputLayout) view;
+        layout.setSuffixText(suffixText);
       }
     };
   }

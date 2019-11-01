@@ -18,8 +18,11 @@ package com.google.android.material.bottomnavigation;
 
 import com.google.android.material.R;
 
+import static com.google.android.material.theme.overlay.MaterialThemeOverlay.wrap;
+
 import android.content.Context;
 import android.content.res.ColorStateList;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
@@ -37,13 +40,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.annotation.StyleRes;
-import com.google.android.material.badge.BadgeDrawable;
-import com.google.android.material.behavior.HideBottomViewOnScrollBehavior;
-import com.google.android.material.internal.ThemeEnforcement;
-import com.google.android.material.resources.MaterialResources;
-import com.google.android.material.ripple.RippleUtils;
-import com.google.android.material.shape.MaterialShapeDrawable;
-import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.drawable.DrawableCompat;
 import androidx.customview.view.AbsSavedState;
@@ -59,6 +55,16 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import androidx.coordinatorlayout.widget.CoordinatorLayout;
+import com.google.android.material.badge.BadgeDrawable;
+import com.google.android.material.behavior.HideBottomViewOnScrollBehavior;
+import com.google.android.material.internal.ThemeEnforcement;
+import com.google.android.material.internal.ViewUtils;
+import com.google.android.material.internal.ViewUtils.RelativePadding;
+import com.google.android.material.resources.MaterialResources;
+import com.google.android.material.ripple.RippleUtils;
+import com.google.android.material.shape.MaterialShapeDrawable;
+import com.google.android.material.shape.MaterialShapeUtils;
 
 /**
  * Represents a standard bottom navigation bar for application. It is an implementation of <a
@@ -106,27 +112,31 @@ import android.widget.FrameLayout;
  */
 public class BottomNavigationView extends FrameLayout {
 
+  private static final int DEF_STYLE_RES = R.style.Widget_Design_BottomNavigationView;
   private static final int MENU_PRESENTER_ID = 1;
 
-  private final MenuBuilder menu;
-  private final BottomNavigationMenuView menuView;
+  @NonNull private final MenuBuilder menu;
+  @NonNull private final BottomNavigationMenuView menuView;
   private final BottomNavigationPresenter presenter = new BottomNavigationPresenter();
-  private ColorStateList itemRippleColor;
+  @Nullable private ColorStateList itemRippleColor;
   private MenuInflater menuInflater;
 
   private OnNavigationItemSelectedListener selectedListener;
   private OnNavigationItemReselectedListener reselectedListener;
 
-  public BottomNavigationView(Context context) {
+  public BottomNavigationView(@NonNull Context context) {
     this(context, null);
   }
 
-  public BottomNavigationView(Context context, AttributeSet attrs) {
+  public BottomNavigationView(@NonNull Context context, @Nullable AttributeSet attrs) {
     this(context, attrs, R.attr.bottomNavigationStyle);
   }
 
-  public BottomNavigationView(Context context, AttributeSet attrs, int defStyleAttr) {
-    super(context, attrs, defStyleAttr);
+  public BottomNavigationView(
+      @NonNull Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
+    super(wrap(context, attrs, defStyleAttr, DEF_STYLE_RES), attrs, defStyleAttr);
+    // Ensure we are using the correctly themed context rather than the context that was passed in.
+    context = getContext();
 
     // Create the menu
     this.menu = new BottomNavigationMenu(context);
@@ -179,7 +189,7 @@ public class BottomNavigationView extends FrameLayout {
       setItemTextColor(a.getColorStateList(R.styleable.BottomNavigationView_itemTextColor));
     }
 
-    if (getBackground() == null) {
+    if (getBackground() == null || getBackground() instanceof ColorDrawable) {
       // Add a MaterialShapeDrawable as background that supports tinting in every API level.
       ViewCompat.setBackground(this, createMaterialShapeDrawableBackground(context));
     }
@@ -224,7 +234,7 @@ public class BottomNavigationView extends FrameLayout {
     this.menu.setCallback(
         new MenuBuilder.Callback() {
           @Override
-          public boolean onMenuItemSelected(MenuBuilder menu, MenuItem item) {
+          public boolean onMenuItemSelected(MenuBuilder menu, @NonNull MenuItem item) {
             if (reselectedListener != null && item.getItemId() == getSelectedItemId()) {
               reselectedListener.onNavigationItemReselected(item);
               return true; // item is already selected
@@ -235,12 +245,44 @@ public class BottomNavigationView extends FrameLayout {
           @Override
           public void onMenuModeChange(MenuBuilder menu) {}
         });
+
+    applyWindowInsets();
   }
 
+  private void applyWindowInsets() {
+    ViewUtils.doOnApplyWindowInsets(
+        this,
+        new ViewUtils.OnApplyWindowInsetsListener() {
+          @NonNull
+          @Override
+          public androidx.core.view.WindowInsetsCompat onApplyWindowInsets(
+              View view,
+              @NonNull androidx.core.view.WindowInsetsCompat insets,
+              @NonNull RelativePadding initialPadding) {
+            initialPadding.bottom += insets.getSystemWindowInsetBottom();
+            initialPadding.applyToView(view);
+            return insets;
+          }
+        });
+  }
+
+  @NonNull
   private MaterialShapeDrawable createMaterialShapeDrawableBackground(Context context) {
     MaterialShapeDrawable materialShapeDrawable = new MaterialShapeDrawable();
+    Drawable originalBackground = getBackground();
+    if (originalBackground instanceof ColorDrawable) {
+      materialShapeDrawable.setFillColor(
+          ColorStateList.valueOf(((ColorDrawable) originalBackground).getColor()));
+    }
     materialShapeDrawable.initializeElevationOverlay(context);
     return materialShapeDrawable;
+  }
+
+  @Override
+  protected void onAttachedToWindow() {
+    super.onAttachedToWindow();
+
+    MaterialShapeUtils.setParentAbsoluteElevation(this);
   }
 
   /**
@@ -252,10 +294,8 @@ public class BottomNavigationView extends FrameLayout {
   @Override
   public void setElevation(float elevation) {
     super.setElevation(elevation);
-    Drawable background = getBackground();
-    if (background instanceof MaterialShapeDrawable) {
-      ((MaterialShapeDrawable) background).setElevation(elevation);
-    }
+
+    MaterialShapeUtils.setElevation(this, elevation);
   }
 
   /**
@@ -445,6 +485,7 @@ public class BottomNavigationView extends FrameLayout {
    * @see #setItemBackground(Drawable)
    * @attr ref R.styleable#BottomNavigationView_itemRippleColor
    */
+  @Nullable
   public ColorStateList getItemRippleColor() {
     return itemRippleColor;
   }
@@ -457,7 +498,7 @@ public class BottomNavigationView extends FrameLayout {
    *     #setItemBackground()}.
    * @attr ref R.styleable#BottomNavigationView_itemRippleColor
    */
-  public void setItemRippleColor(ColorStateList itemRippleColor) {
+  public void setItemRippleColor(@Nullable ColorStateList itemRippleColor) {
     if (this.itemRippleColor == itemRippleColor) {
       // Clear the item background when setItemRippleColor(null) is called for consistency.
       if (itemRippleColor == null && menuView.getItemBackground() != null) {
@@ -613,7 +654,7 @@ public class BottomNavigationView extends FrameLayout {
    *
    * @param menuItemId Id of the menu item.
    * @return an instance of BadgeDrawable associated with {@code menuItemId} or null.
-   * @see #showBadge(int)
+   * @see #getOrCreateBadge(int)
    */
   @Nullable
   public BadgeDrawable getBadge(int menuItemId) {
@@ -621,15 +662,15 @@ public class BottomNavigationView extends FrameLayout {
   }
 
   /**
-   * Initializes (if needed) and shows a {@link BadgeDrawable} associated with {@code menuItemId}.
-   * Creates an instance of BadgeDrawable if none are associated with {@code menuItemId}. For
-   * convenience, also returns the associated instance of BadgeDrawable.
+   * Creates an instance of {@link BadgeDrawable} associated with {@code menuItemId} if none exists.
+   * Initializes (if needed) and returns the associated instance of {@link BadgeDrawable} associated
+   * with {@code menuItemId}.
    *
    * @param menuItemId Id of the menu item.
    * @return an instance of BadgeDrawable associated with {@code menuItemId}.
    */
-  public BadgeDrawable showBadge(int menuItemId) {
-    return menuView.showBadge(menuItemId);
+  public BadgeDrawable getOrCreateBadge(int menuItemId) {
+    return menuView.getOrCreateBadge(menuItemId);
   }
 
   /**
@@ -708,13 +749,13 @@ public class BottomNavigationView extends FrameLayout {
   }
 
   static class SavedState extends AbsSavedState {
-    Bundle menuPresenterState;
+    @Nullable Bundle menuPresenterState;
 
     public SavedState(Parcelable superState) {
       super(superState);
     }
 
-    public SavedState(Parcel source, ClassLoader loader) {
+    public SavedState(@NonNull Parcel source, ClassLoader loader) {
       super(source, loader);
       readFromParcel(source, loader);
     }
@@ -725,22 +766,25 @@ public class BottomNavigationView extends FrameLayout {
       out.writeBundle(menuPresenterState);
     }
 
-    private void readFromParcel(Parcel in, ClassLoader loader) {
+    private void readFromParcel(@NonNull Parcel in, ClassLoader loader) {
       menuPresenterState = in.readBundle(loader);
     }
 
     public static final Creator<SavedState> CREATOR =
         new ClassLoaderCreator<SavedState>() {
+          @NonNull
           @Override
-          public SavedState createFromParcel(Parcel in, ClassLoader loader) {
+          public SavedState createFromParcel(@NonNull Parcel in, ClassLoader loader) {
             return new SavedState(in, loader);
           }
 
+          @Nullable
           @Override
-          public SavedState createFromParcel(Parcel in) {
+          public SavedState createFromParcel(@NonNull Parcel in) {
             return new SavedState(in, null);
           }
 
+          @NonNull
           @Override
           public SavedState[] newArray(int size) {
             return new SavedState[size];

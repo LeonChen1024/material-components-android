@@ -23,12 +23,12 @@ import android.animation.PropertyValuesHolder;
 import android.content.Context;
 import android.content.res.TypedArray;
 import androidx.annotation.AnimatorRes;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.StyleableRes;
 import androidx.collection.SimpleArrayMap;
 import android.util.Log;
 import android.util.Property;
-import android.view.View;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -99,6 +99,13 @@ public class MotionSpec {
     return propertyValues.get(name) != null;
   }
 
+  /**
+   * Get values for a property in this MotionSpec.
+   *
+   * @param name Name of the property to get values for, e.g. "width" or "opacity".
+   * @return Array of {@link PropertyValuesHolder} values for the property.
+   */
+  @NonNull
   public PropertyValuesHolder[] getPropertyValues(String name) {
     if (!hasPropertyValues(name)) {
       throw new IllegalArgumentException();
@@ -106,11 +113,18 @@ public class MotionSpec {
     return clonePropertyValuesHolder(propertyValues.get(name));
   }
 
+  /**
+   * Set values for a property in this MotionSpec.
+   *
+   * @param name Name of the property to set values for, e.g. "width" or "opacity".
+   * @param values Array of {@link PropertyValuesHolder} values for the property.
+   */
   public void setPropertyValues(String name, PropertyValuesHolder[] values) {
     propertyValues.put(name, values);
   }
 
-  private PropertyValuesHolder[] clonePropertyValuesHolder(PropertyValuesHolder[] values) {
+  @NonNull
+  private PropertyValuesHolder[] clonePropertyValuesHolder(@NonNull PropertyValuesHolder[] values) {
     PropertyValuesHolder[] ret = new PropertyValuesHolder[values.length];
     for (int i = 0; i < values.length; i++) {
       ret[i] = values[i].clone();
@@ -118,8 +132,21 @@ public class MotionSpec {
     return ret;
   }
 
-  public ObjectAnimator getAnimator(String name, View view, Property<View, Float> property) {
-    ObjectAnimator animator = ObjectAnimator.ofPropertyValuesHolder(view, getPropertyValues(name));
+  /**
+   * Creates and returns an {@link ObjectAnimator} that animates the given property. This can be
+   * added to an {@link AnimatorSet} to play multiple synchronized animations.
+   *
+   * @param name Name of the property to be animated.
+   * @param target The target whose property is to be animated. See {@link
+   *     ObjectAnimator#ofPropertyValuesHolder(T, PropertyValuesHolder...)} for more details.
+   * @param property The {@link Property} object being animated.
+   * @return An {@link ObjectAnimator} which animates the given property.
+   */
+  @NonNull
+  public <T> ObjectAnimator getAnimator(
+      @NonNull String name, @NonNull T target, @NonNull Property<T, ?> property) {
+    ObjectAnimator animator =
+        ObjectAnimator.ofPropertyValuesHolder(target, getPropertyValues(name));
     animator.setProperty(property);
     getTiming(name).apply(animator);
     return animator;
@@ -144,7 +171,7 @@ public class MotionSpec {
    */
   @Nullable
   public static MotionSpec createFromAttribute(
-      Context context, TypedArray attributes, @StyleableRes int index) {
+      @NonNull Context context, @NonNull TypedArray attributes, @StyleableRes int index) {
     if (attributes.hasValue(index)) {
       int resourceId = attributes.getResourceId(index, 0);
       if (resourceId != 0) {
@@ -156,7 +183,7 @@ public class MotionSpec {
 
   /** Inflates an instance of MotionSpec from the given animator resource. */
   @Nullable
-  public static MotionSpec createFromResource(Context context, @AnimatorRes int id) {
+  public static MotionSpec createFromResource(@NonNull Context context, @AnimatorRes int id) {
     try {
       Animator animator = AnimatorInflater.loadAnimator(context, id);
       if (animator instanceof AnimatorSet) {
@@ -175,7 +202,8 @@ public class MotionSpec {
     }
   }
 
-  private static MotionSpec createSpecFromAnimators(List<Animator> animators) {
+  @NonNull
+  private static MotionSpec createSpecFromAnimators(@NonNull List<Animator> animators) {
     MotionSpec spec = new MotionSpec();
     for (int i = 0, count = animators.size(); i < count; i++) {
       addInfoFromAnimator(spec, animators.get(i));
@@ -183,7 +211,7 @@ public class MotionSpec {
     return spec;
   }
 
-  private static void addInfoFromAnimator(MotionSpec spec, Animator animator) {
+  private static void addInfoFromAnimator(@NonNull MotionSpec spec, Animator animator) {
     if (animator instanceof ObjectAnimator) {
       ObjectAnimator anim = (ObjectAnimator) animator;
       spec.setPropertyValues(anim.getPropertyName(), anim.getValues());
@@ -198,7 +226,7 @@ public class MotionSpec {
     if (this == o) {
       return true;
     }
-    if (o == null || getClass() != o.getClass()) {
+    if (!(o instanceof MotionSpec)) {
       return false;
     }
 
@@ -212,6 +240,7 @@ public class MotionSpec {
     return timings.hashCode();
   }
 
+  @NonNull
   @Override
   public String toString() {
     StringBuilder out = new StringBuilder();

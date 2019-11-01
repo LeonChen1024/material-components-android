@@ -21,13 +21,13 @@ import io.material.catalog.R;
 import android.os.Bundle;
 import androidx.annotation.LayoutRes;
 import androidx.annotation.Nullable;
-import com.google.android.material.card.MaterialCardView;
-import com.google.android.material.internal.ViewUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.TextView;
+import com.google.android.material.card.MaterialCardView;
+import com.google.android.material.internal.ViewUtils;
 import io.material.catalog.feature.DemoFragment;
 import io.material.catalog.feature.DemoUtils;
 import java.util.List;
@@ -78,20 +78,8 @@ public class ElevationMainDemoFragment extends DemoFragment {
 
     elevationDP = elevationValues[currentElevation];
 
-    increaseButton.setOnClickListener(
-        new View.OnClickListener() {
-          @Override
-          public void onClick(View button) {
-            updateElevationLevel(view, currentElevation + 1);
-          }
-        });
-    decreaseButton.setOnClickListener(
-        new View.OnClickListener() {
-          @Override
-          public void onClick(View button) {
-            updateElevationLevel(view, currentElevation - 1);
-          }
-        });
+    increaseButton.setOnClickListener(button -> updateElevationLevel(view, currentElevation + 1));
+    decreaseButton.setOnClickListener(button -> updateElevationLevel(view, currentElevation - 1));
     updateElevationLevel(view, 0);
   }
 

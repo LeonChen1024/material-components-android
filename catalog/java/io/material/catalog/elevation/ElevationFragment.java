@@ -57,10 +57,10 @@ public class ElevationFragment extends DemoLandingFragment {
   @Override
   public List<Demo> getAdditionalDemos() {
     return Arrays.asList(
-        new Demo(R.string.cat_elevation_overlays_title) {
+        new Demo(R.string.cat_elevation_overlay_title) {
           @Override
           public Intent createActivityIntent() {
-            return new Intent(getContext(), ElevationOverlaysDemoActivity.class);
+            return new Intent(getContext(), ElevationOverlayDemoActivity.class);
           }
         },
         new Demo(R.string.cat_elevation_animation_title) {
@@ -83,7 +83,7 @@ public class ElevationFragment extends DemoLandingFragment {
     @Provides
     @ActivityScope
     static FeatureDemo provideFeatureDemo() {
-      return new FeatureDemo(R.string.cat_elevation_fragment_title, R.drawable.ic_card) {
+      return new FeatureDemo(R.string.cat_elevation_fragment_title, R.drawable.ic_elevation) {
         @Override
         public Fragment createFragment() {
           return new ElevationFragment();

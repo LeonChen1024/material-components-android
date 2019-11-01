@@ -18,39 +18,52 @@ package io.material.catalog.feature;
 
 import io.material.catalog.R;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
+import android.os.Build;
 import android.os.Bundle;
 import androidx.annotation.Nullable;
 import androidx.annotation.StringRes;
 import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentActivity;
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import android.view.GestureDetector;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import dagger.android.AndroidInjector;
 import dagger.android.DispatchingAndroidInjector;
+import dagger.android.HasAndroidInjector;
 import dagger.android.support.AndroidSupportInjection;
-import dagger.android.support.HasSupportFragmentInjector;
 import io.material.catalog.themeswitcher.ThemeSwitcherHelper;
 import io.material.catalog.themeswitcher.ThemeSwitcherHelper.ThemeSwitcherFragment;
 import javax.inject.Inject;
 
 /** Base Fragment class that provides a demo screen structure for a single demo. */
 public abstract class DemoFragment extends Fragment
-    implements ThemeSwitcherFragment, HasSupportFragmentInjector {
+    implements ThemeSwitcherFragment, HasAndroidInjector {
 
   public static final String ARG_DEMO_TITLE = "demo_title";
 
+  private static final int MEMORY_POLLING_INTERVAL_MS = 1500;
+  private static final float SWIPE_MIN_DISTANCE_PX = 50;
+  private static final float SWIPE_MIN_VELOCITY = 50;
+
   private Toolbar toolbar;
   private ViewGroup demoContainer;
-  @Nullable private ThemeSwitcherHelper themeSwitcherHelper;
 
-  @Inject DispatchingAndroidInjector<Fragment> childFragmentInjector;
+  @Inject DispatchingAndroidInjector<Object> childFragmentInjector;
+
+  @Nullable private ThemeSwitcherHelper themeSwitcherHelper;
+  @Nullable private GestureDetector gestureDetector;
+  @Nullable private MemoryView memoryWidget;
+  @Nullable private ViewScheduler viewScheduler;
 
   @Override
   public void onAttach(Context context) {
@@ -60,25 +73,43 @@ public abstract class DemoFragment extends Fragment
     themeSwitcherHelper = new ThemeSwitcherHelper(this);
   }
 
+  @StringRes
+  public int getDemoTitleResId() {
+    return 0;
+  }
+
   @Nullable
   @Override
+  @SuppressLint("ClickableViewAccessibility") // Keep this hidden from a11y services for now.
   public View onCreateView(
       LayoutInflater layoutInflater, @Nullable ViewGroup viewGroup, @Nullable Bundle bundle) {
     View view =
         layoutInflater.inflate(R.layout.cat_demo_fragment, viewGroup, false /* attachToRoot */);
 
     toolbar = view.findViewById(R.id.toolbar);
-    demoContainer = view.findViewById(R.id.cat_demo_fragment_container);
+    // show a memory widget on Kitkat
+    if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.KITKAT) {
+      gestureDetector = new GestureDetector(getContext(), new GestureListener());
+      memoryWidget = view.findViewById(R.id.memorymonitor_widget);
+      toolbar.setOnTouchListener((v, event) -> gestureDetector.onTouchEvent(event));
+      viewScheduler = new ViewScheduler();
+    }
 
+    demoContainer = view.findViewById(R.id.cat_demo_fragment_container);
     initDemoActionBar();
     demoContainer.addView(onCreateDemoView(layoutInflater, viewGroup, bundle));
 
+    ViewGroup children = (ViewGroup) demoContainer.getChildAt(0);
+    DemoUtils.addBottomSpaceInsetsIfNeeded(children, demoContainer);
     return view;
   }
 
-  @StringRes
-  public int getDemoTitleResId() {
-    return 0;
+  @Override
+  public void onStop() {
+    super.onStop();
+    if (viewScheduler != null) {
+      viewScheduler.cancel();
+    }
   }
 
   /**
@@ -91,7 +122,7 @@ public abstract class DemoFragment extends Fragment
   }
 
   @Override
-  public AndroidInjector<Fragment> supportFragmentInjector() {
+  public AndroidInjector<Object> androidInjector() {
     return childFragmentInjector;
   }
 
@@ -144,4 +175,30 @@ public abstract class DemoFragment extends Fragment
 
   public abstract View onCreateDemoView(
       LayoutInflater layoutInflater, @Nullable ViewGroup viewGroup, @Nullable Bundle bundle);
+
+  private final class GestureListener extends GestureDetector.SimpleOnGestureListener {
+
+    private final FragmentActivity activity = getActivity();
+
+    private final Runnable listener = () -> activity.runOnUiThread(() -> {
+      memoryWidget.refreshMemStats(Runtime.getRuntime());
+    });
+
+    private boolean memoryWidgetShown;
+
+    @Override
+    public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+      if (e2.getY() - e1.getY() < SWIPE_MIN_DISTANCE_PX
+          || Math.abs(velocityY) < SWIPE_MIN_VELOCITY
+          || memoryWidgetShown) {
+        return false;
+      }
+
+      memoryWidgetShown = true;
+      viewScheduler.start(listener, MEMORY_POLLING_INTERVAL_MS);
+      memoryWidget.setVisibility(View.VISIBLE);
+
+      return true;
+    }
+  }
 }

@@ -21,13 +21,13 @@ import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static org.junit.Assert.assertEquals;
 
 import android.graphics.Rect;
-import com.google.android.material.testapp.R;
 import androidx.core.view.ViewCompat;
 import android.view.View;
 import android.view.ViewGroup;
 import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.MediumTest;
 import androidx.test.runner.AndroidJUnit4;
+import com.google.android.material.testapp.R;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -198,15 +198,12 @@ public class AppBarWithToolbarTest extends AppBarLayoutBaseTest {
 
     // Now request that the first child has its full rectangle displayed
     activityTestRule.runOnUiThread(
-        new Runnable() {
-          @Override
-          public void run() {
-            final ViewGroup scrollingContentInner =
-                scrollingContent.findViewById(R.id.scrolling_content_inner);
-            View child = scrollingContentInner.getChildAt(0);
-            Rect rect = new Rect(0, 0, child.getWidth(), child.getHeight());
-            child.requestRectangleOnScreen(rect, true);
-          }
+        () -> {
+          final ViewGroup scrollingContentInner =
+              scrollingContent.findViewById(R.id.scrolling_content_inner);
+          View child = scrollingContentInner.getChildAt(0);
+          Rect rect = new Rect(0, 0, child.getWidth(), child.getHeight());
+          child.requestRectangleOnScreen(rect, true);
         });
     InstrumentationRegistry.getInstrumentation().waitForIdleSync();
 
@@ -232,16 +229,12 @@ public class AppBarWithToolbarTest extends AppBarLayoutBaseTest {
 
     // Now request that the first child has its full rectangle displayed
     activityTestRule.runOnUiThread(
-        new Runnable() {
-          @Override
-          public void run() {
-            final ViewGroup scrollingContentInner =
-                scrollingContent.findViewById(R.id.scrolling_content_inner);
-            View child =
-                scrollingContentInner.getChildAt(scrollingContentInner.getChildCount() - 1);
-            Rect rect = new Rect(0, 0, child.getWidth(), child.getHeight());
-            child.requestRectangleOnScreen(rect, true);
-          }
+        () -> {
+          final ViewGroup scrollingContentInner =
+              scrollingContent.findViewById(R.id.scrolling_content_inner);
+          View child = scrollingContentInner.getChildAt(scrollingContentInner.getChildCount() - 1);
+          Rect rect = new Rect(0, 0, child.getWidth(), child.getHeight());
+          child.requestRectangleOnScreen(rect, true);
         });
     InstrumentationRegistry.getInstrumentation().waitForIdleSync();
 

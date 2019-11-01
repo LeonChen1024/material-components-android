@@ -3,8 +3,6 @@ apply plugin: 'com.android.library'
 dependencies {
   api compatibility("appcompat")
   api compatibility("core")
-  api compatibility("core_ui")
-  api compatibility("core_utils")
   api compatibility("fragment")
 
   api project(fromPath("demos/java/io/material/demo/shrine/theme"))
@@ -24,6 +22,6 @@ android {
   }
   defaultConfig {
     minSdkVersion 14
-    targetSdkVersion 27
+    targetSdkVersion 28
   }
 }

@@ -20,6 +20,8 @@
   android:versionCode="1"
   android:versionName="1.0">
 
+  <uses-sdk />
+
   <application
     android:name="io.material.catalog.application.${application_name}"
     android:allowBackup="true"
@@ -40,20 +42,20 @@
       </intent-filter>
     </activity>
     <activity
-      android:name=".elevation.ElevationOverlaysDemoActivity"
+      android:name=".elevation.ElevationOverlayDemoActivity"
       android:exported="false"
-      android:label="@string/cat_elevation_overlays_title"
+      android:label="@string/cat_elevation_overlay_title"
       android:theme="@style/Theme.Catalog.Dark"/>
     <activity
       android:name=".topappbar.TopAppBarActionBarDemoActivity"
       android:exported="false"
       android:label="@string/cat_topappbar_action_bar_title"
-      android:theme="@style/Theme.MaterialComponents.Light"/>
+      android:theme="@style/Theme.MaterialComponents.DayNight"/>
     <activity
       android:name=".topappbar.TopAppBarDarkActionBarDemoActivity"
       android:exported="false"
       android:label="@string/cat_topappbar_dark_action_bar_title"
-      android:theme="@style/Theme.MaterialComponents.Light.DarkActionBar"/>
+      android:theme="@style/Theme.MaterialComponents.DayNight.DarkActionBar"/>
     <activity
       android:name=".topappbar.TopAppBarScrollingTransparentStatusDemoActivity"
       android:exported="false"

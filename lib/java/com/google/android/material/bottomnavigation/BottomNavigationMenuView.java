@@ -25,11 +25,10 @@ import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
 import androidx.annotation.Dimension;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RestrictTo;
 import androidx.annotation.StyleRes;
-import com.google.android.material.badge.BadgeDrawable;
-import com.google.android.material.internal.TextScale;
 import androidx.core.util.Pools;
 import androidx.core.view.ViewCompat;
 import androidx.appcompat.content.res.AppCompatResources;
@@ -47,6 +46,8 @@ import androidx.interpolator.view.animation.FastOutSlowInInterpolator;
 import androidx.transition.AutoTransition;
 import androidx.transition.TransitionManager;
 import androidx.transition.TransitionSet;
+import com.google.android.material.badge.BadgeDrawable;
+import com.google.android.material.internal.TextScale;
 import java.util.HashSet;
 
 /** @hide For internal use only. */
@@ -58,33 +59,33 @@ public class BottomNavigationMenuView extends ViewGroup implements MenuView {
   private static final int[] CHECKED_STATE_SET = {android.R.attr.state_checked};
   private static final int[] DISABLED_STATE_SET = {-android.R.attr.state_enabled};
 
-  private final TransitionSet set;
+  @NonNull private final TransitionSet set;
   private final int inactiveItemMaxWidth;
   private final int inactiveItemMinWidth;
   private final int activeItemMaxWidth;
   private final int activeItemMinWidth;
   private final int itemHeight;
-  private final OnClickListener onClickListener;
+  @NonNull private final OnClickListener onClickListener;
   private final Pools.Pool<BottomNavigationItemView> itemPool =
       new Pools.SynchronizedPool<>(ITEM_POOL_SIZE);
-  private final SparseArray<BadgeDrawable> badgeDrawables = new SparseArray<>(ITEM_POOL_SIZE);
 
   private boolean itemHorizontalTranslationEnabled;
   @LabelVisibilityMode private int labelVisibilityMode;
 
-  private BottomNavigationItemView[] buttons;
+  @Nullable private BottomNavigationItemView[] buttons;
   private int selectedItemId = 0;
   private int selectedItemPosition = 0;
 
   private ColorStateList itemIconTint;
   @Dimension private int itemIconSize;
   private ColorStateList itemTextColorFromUser;
-  private final ColorStateList itemTextColorDefault;
+  @Nullable private final ColorStateList itemTextColorDefault;
   @StyleRes private int itemTextAppearanceInactive;
   @StyleRes private int itemTextAppearanceActive;
   private Drawable itemBackground;
   private int itemBackgroundRes;
   private int[] tempChildWidths;
+  @NonNull private SparseArray<BadgeDrawable> badgeDrawables = new SparseArray<>(ITEM_POOL_SIZE);
 
   private BottomNavigationPresenter presenter;
   private MenuBuilder menu;
@@ -466,6 +467,7 @@ public class BottomNavigationMenuView extends ViewGroup implements MenuView {
     return itemHorizontalTranslationEnabled;
   }
 
+  @Nullable
   public ColorStateList createDefaultColorStateList(int baseColorThemeAttr) {
     final TypedValue value = new TypedValue();
     if (!getContext().getTheme().resolveAttribute(baseColorThemeAttr, value, true)) {
@@ -611,20 +613,27 @@ public class BottomNavigationMenuView extends ViewGroup implements MenuView {
     }
   }
 
+  SparseArray<BadgeDrawable> getBadgeDrawables() {
+    return badgeDrawables;
+  }
+
+  void setBadgeDrawables(SparseArray<BadgeDrawable> badgeDrawables) {
+    this.badgeDrawables = badgeDrawables;
+  }
+
   @Nullable
   BadgeDrawable getBadge(int menuItemId) {
     return badgeDrawables.get(menuItemId);
   }
 
   /**
-   * Initializes (if needed) and shows a {@link BadgeDrawable} associated with {@code menuItemId}.
-   * Creates an instance of BadgeDrawable if none are associated with {@code menuItemId}. For
-   * convenience, also returns the associated instance of BadgeDrawable.
+   * Creates an instance of {@link BadgeDrawable} if none exists. Initializes (if needed) and
+   * returns the associated instance of {@link BadgeDrawable}.
    *
    * @param menuItemId Id of the menu item.
    * @return an instance of BadgeDrawable associated with {@code menuItemId}.
    */
-  BadgeDrawable showBadge(int menuItemId) {
+  BadgeDrawable getOrCreateBadge(int menuItemId) {
     validateMenuItemId(menuItemId);
     BadgeDrawable badgeDrawable = badgeDrawables.get(menuItemId);
     // Create an instance of BadgeDrawable if none were already initialized for this menu item.
@@ -632,7 +641,6 @@ public class BottomNavigationMenuView extends ViewGroup implements MenuView {
       badgeDrawable = BadgeDrawable.create(getContext());
       badgeDrawables.put(menuItemId, badgeDrawable);
     }
-    badgeDrawable.setVisible(true, /* restart= */ false);
     BottomNavigationItemView itemView = findItemView(menuItemId);
     if (itemView != null) {
       itemView.setBadge(badgeDrawable);
@@ -652,7 +660,7 @@ public class BottomNavigationMenuView extends ViewGroup implements MenuView {
     }
   }
 
-  private void setBadgeIfNeeded(BottomNavigationItemView child) {
+  private void setBadgeIfNeeded(@NonNull BottomNavigationItemView child) {
     int childId = child.getId();
     if (!isValidId(childId)) {
       // Child doesn't have a valid id, do not set any BadgeDrawable on the view.
@@ -683,9 +691,11 @@ public class BottomNavigationMenuView extends ViewGroup implements MenuView {
   @Nullable
   private BottomNavigationItemView findItemView(int menuItemId) {
     validateMenuItemId(menuItemId);
-    for (BottomNavigationItemView itemView : buttons) {
-      if (itemView.getId() == menuItemId) {
-        return itemView;
+    if (buttons != null) {
+      for (BottomNavigationItemView itemView : buttons) {
+        if (itemView.getId() == menuItemId) {
+          return itemView;
+        }
       }
     }
     return null;

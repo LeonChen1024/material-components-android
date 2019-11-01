@@ -20,26 +20,32 @@ import com.google.android.material.R;
 
 import android.content.Context;
 import android.content.res.TypedArray;
-import android.os.Build.VERSION;
-import android.os.Build.VERSION_CODES;
+import android.graphics.Canvas;
 import androidx.annotation.BoolRes;
 import androidx.annotation.IdRes;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import com.google.android.material.button.MaterialButton.OnPressedChangeListener;
-import com.google.android.material.internal.ThemeEnforcement;
-import com.google.android.material.internal.ViewUtils;
-import com.google.android.material.shape.ShapeAppearanceModel;
+import androidx.annotation.VisibleForTesting;
 import androidx.core.view.MarginLayoutParamsCompat;
+import androidx.core.view.ViewCompat;
 import android.text.TextUtils.TruncateAt;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.RelativeLayout;
+import android.widget.LinearLayout;
+import com.google.android.material.button.MaterialButton.OnPressedChangeListener;
+import com.google.android.material.internal.ThemeEnforcement;
+import com.google.android.material.internal.ViewUtils;
+import com.google.android.material.shape.AbsoluteCornerSize;
+import com.google.android.material.shape.CornerSize;
+import com.google.android.material.shape.ShapeAppearanceModel;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 /**
  * A common container for a set of related, toggleable {@link MaterialButton}s. The {@link
@@ -53,7 +59,7 @@ import java.util.List;
  *     xmlns:android="http://schemas.android.com/apk/res/android"
  *     android:id="@+id/toggle_button_group"
  *     android:layout_width="wrap_content"
- *     android:layout_height="wrap_content" /&gt;
+ *     android:layout_height="wrap_content"&gt;
  *
  *     &lt;com.google.android.material.button.MaterialButton
  *         style="?attr/materialButtonOutlinedStyle"
@@ -76,7 +82,7 @@ import java.util.List;
  *         android:layout_height="wrap_content"
  *         android:text="@string/button_label_custom"/&gt;
  *
- * &lt;com.google.android.material.button.MaterialButtonToggleGroup /&gt;
+ * &lt;/com.google.android.material.button.MaterialButtonToggleGroup&gt;
  * </pre>
  *
  * <p>Buttons can also be added to this view group programmatically via the {@link #addView(View)}
@@ -93,8 +99,9 @@ import java.util.List;
  * app:singleSelection} attribute to {@code true} on the MaterialButtonToggleGroup or call {@link
  * #setSingleSelection(boolean) setSingleSelection(true)}.
  *
- * <p>MaterialButtonToggleGroup is a {@link RelativeLayout}, and positions children to be aligned to
- * the end of the previous child in the order they are added.
+ * <p>MaterialButtonToggleGroup is a {@link LinearLayout}. Using {@code
+ * android:layout_width="MATCH_PARENT"} and removing {@code android:insetBottom} {@code
+ * android:insetTop} on the children is recommended if using {@code VERTICAL}.
  *
  * <p>In order to cohesively group multiple buttons together, MaterialButtonToggleGroup overrides
  * the start and end margins of any children added to this layout such that child buttons are placed
@@ -105,7 +112,8 @@ import java.util.List;
  * that only the left-most corners of the first child and the right-most corners of the last child
  * retain their shape appearance or corner size.
  */
-public class MaterialButtonToggleGroup extends RelativeLayout {
+public class MaterialButtonToggleGroup extends LinearLayout {
+
   /**
    * Interface definition for a callback to be invoked when a {@link MaterialButton} is checked or
    * unchecked in this group.
@@ -123,30 +131,47 @@ public class MaterialButtonToggleGroup extends RelativeLayout {
 
   private static final String LOG_TAG = MaterialButtonToggleGroup.class.getSimpleName();
 
-  private final ArrayList<MaterialButton> childrenInOrder = new ArrayList<>();
-  private final ArrayList<CornerData> originalCornerData = new ArrayList<>();
+  private final List<CornerData> originalCornerData = new ArrayList<>();
 
   private final CheckedStateTracker checkedStateTracker = new CheckedStateTracker();
   private final PressedStateTracker pressedStateTracker = new PressedStateTracker();
   private final LinkedHashSet<OnButtonCheckedListener> onButtonCheckedListeners =
       new LinkedHashSet<>();
+  private final Comparator<MaterialButton> childOrderComparator =
+      new Comparator<MaterialButton>() {
+        @Override
+        public int compare(MaterialButton v1, MaterialButton v2) {
+          int checked = Boolean.valueOf(v1.isChecked()).compareTo(v2.isChecked());
+          if (checked != 0) {
+            return checked;
+          }
 
+          int stateful = Boolean.valueOf(v1.isPressed()).compareTo(v2.isPressed());
+          if (stateful != 0) {
+            return stateful;
+          }
+
+          // don't return 0s
+          return Integer.valueOf(indexOfChild(v1)).compareTo(indexOfChild(v2));
+        }
+      };
+
+  private Integer[] childOrder;
   private boolean skipCheckedStateTracker = false;
   private boolean singleSelection;
   @IdRes private int checkedId;
 
-  public MaterialButtonToggleGroup(Context context) {
+  public MaterialButtonToggleGroup(@NonNull Context context) {
     this(context, null);
   }
 
-  public MaterialButtonToggleGroup(Context context, @Nullable AttributeSet attrs) {
+  public MaterialButtonToggleGroup(@NonNull Context context, @Nullable AttributeSet attrs) {
     this(context, attrs, R.attr.materialButtonToggleGroupStyle);
   }
 
   public MaterialButtonToggleGroup(
-      Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
+      @NonNull Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
     super(context, attrs, defStyleAttr);
-
     TypedArray attributes =
         ThemeEnforcement.obtainStyledAttributes(
             context,
@@ -159,7 +184,7 @@ public class MaterialButtonToggleGroup extends RelativeLayout {
         attributes.getBoolean(R.styleable.MaterialButtonToggleGroup_singleSelection, false));
     checkedId =
         attributes.getResourceId(R.styleable.MaterialButtonToggleGroup_checkedButton, View.NO_ID);
-
+    setChildrenDrawingOrderEnabled(true);
     attributes.recycle();
   }
 
@@ -174,23 +199,25 @@ public class MaterialButtonToggleGroup extends RelativeLayout {
   }
 
   @Override
+  protected void dispatchDraw(@NonNull Canvas canvas) {
+    updateChildOrder();
+    super.dispatchDraw(canvas);
+  }
+
+  /**
+   * This override prohibits Views other than {@link MaterialButton} to be added. It also makes
+   * updates to the add button shape and margins.
+   */
+  @Override
   public void addView(View child, int index, ViewGroup.LayoutParams params) {
     if (!(child instanceof MaterialButton)) {
       Log.e(LOG_TAG, "Child views must be of type MaterialButton.");
       return;
     }
 
-    final MaterialButton buttonChild = (MaterialButton) child;
+    super.addView(child, index, params);
+    MaterialButton buttonChild = (MaterialButton) child;
     setGeneratedIdIfNeeded(buttonChild);
-
-    // If index < 0, adds to the end of the layout
-    int indexToAdd = index >= 0 ? index : getChildCount();
-
-    super.addView(buttonChild, index, new RelativeLayout.LayoutParams(params.width, params.height));
-
-    // Saves child data locally for visual ordering
-    childrenInOrder.add(indexToAdd, buttonChild);
-
     // Sets sensible default values and an internal checked change listener for this child
     setupButtonChild(buttonChild);
 
@@ -204,10 +231,10 @@ public class MaterialButtonToggleGroup extends RelativeLayout {
     ShapeAppearanceModel shapeAppearanceModel = buttonChild.getShapeAppearanceModel();
     originalCornerData.add(
         new CornerData(
-            shapeAppearanceModel.getTopLeftCorner().getCornerSize(),
-            shapeAppearanceModel.getTopRightCorner().getCornerSize(),
-            shapeAppearanceModel.getBottomRightCorner().getCornerSize(),
-            shapeAppearanceModel.getBottomLeftCorner().getCornerSize()));
+            shapeAppearanceModel.getTopLeftCornerSize(),
+            shapeAppearanceModel.getBottomLeftCornerSize(),
+            shapeAppearanceModel.getTopRightCornerSize(),
+            shapeAppearanceModel.getBottomRightCornerSize()));
   }
 
   @Override
@@ -219,9 +246,8 @@ public class MaterialButtonToggleGroup extends RelativeLayout {
       ((MaterialButton) child).setOnPressedChangeListenerInternal(null);
     }
 
-    int indexOfChild = childrenInOrder.indexOf(child);
+    int indexOfChild = indexOfChild(child);
     if (indexOfChild >= 0) {
-      childrenInOrder.remove(child);
       originalCornerData.remove(indexOfChild);
     }
 
@@ -237,6 +263,7 @@ public class MaterialButtonToggleGroup extends RelativeLayout {
     super.onMeasure(widthMeasureSpec, heightMeasureSpec);
   }
 
+  @NonNull
   @Override
   public CharSequence getAccessibilityClassName() {
     return MaterialButtonToggleGroup.class.getName();
@@ -249,6 +276,7 @@ public class MaterialButtonToggleGroup extends RelativeLayout {
    * retain their checked state.
    *
    * @param id View ID of {@link MaterialButton} to set checked
+   * @see #uncheck(int)
    * @see #clearChecked()
    * @see #getCheckedButtonIds()
    * @see #getCheckedButtonId()
@@ -262,17 +290,34 @@ public class MaterialButtonToggleGroup extends RelativeLayout {
   }
 
   /**
+   * Sets the {@link MaterialButton} whose id is passed in to the unchecked state.
+   *
+   * @param id View ID of {@link MaterialButton} to set unchecked
+   * @see #check(int)
+   * @see #clearChecked()
+   * @see #getCheckedButtonIds()
+   * @see #getCheckedButtonId()
+   */
+  public void uncheck(@IdRes int id) {
+    setCheckedStateForView(id, false);
+    updateCheckedStates(id, false);
+    checkedId = View.NO_ID;
+    dispatchOnButtonChecked(id, false);
+  }
+
+  /**
    * Clears the selections. When the selections are cleared, no {@link MaterialButton} in this group
    * is checked and {@link #getCheckedButtonIds()} returns an empty list.
    *
    * @see #check(int)
+   * @see #uncheck(int)
    * @see #getCheckedButtonIds()
    * @see #getCheckedButtonId()
    */
   public void clearChecked() {
     skipCheckedStateTracker = true;
     for (int i = 0; i < getChildCount(); i++) {
-      MaterialButton child = childrenInOrder.get(i);
+      MaterialButton child = getChildButton(i);
       child.setChecked(false);
 
       dispatchOnButtonChecked(child.getId(), false);
@@ -287,8 +332,11 @@ public class MaterialButtonToggleGroup extends RelativeLayout {
    * selected button in this group. Upon empty selection, the returned value is {@link View#NO_ID}.
    * If not in single selection mode, the return value is {@link View#NO_ID}.
    *
-   * @return the unique id of the selected button in this group in single selection mode
+   * @return The unique id of the selected {@link MaterialButton} in this group in {@link
+   *     #isSingleSelection() single selection mode}. When not in {@link #isSingleSelection() single
+   *     selection mode}, returns {@link View#NO_ID}.
    * @see #check(int)
+   * @see #uncheck(int)
    * @see #clearChecked()
    * @see #getCheckedButtonIds()
    * @attr ref R.styleable#MaterialButtonToggleGroup_checkedButton
@@ -302,15 +350,19 @@ public class MaterialButtonToggleGroup extends RelativeLayout {
    * Returns the identifiers of the selected {@link MaterialButton}s in this group. Upon empty
    * selection, the returned value is an empty list.
    *
-   * @return The unique IDs of the selected {@link MaterialButton}s in this group.
+   * @return The unique IDs of the selected {@link MaterialButton}s in this group. When in {@link
+   *     #isSingleSelection() single selection mode}, returns a list with a single ID. When no
+   *     {@link MaterialButton}s are selected, returns an empty list.
    * @see #check(int)
+   * @see #uncheck(int)
    * @see #clearChecked()
    * @see #getCheckedButtonId()
    */
+  @NonNull
   public List<Integer> getCheckedButtonIds() {
     ArrayList<Integer> checkedIds = new ArrayList<>();
     for (int i = 0; i < getChildCount(); i++) {
-      MaterialButton child = childrenInOrder.get(i);
+      MaterialButton child = getChildButton(i);
       if (child.isChecked()) {
         checkedIds.add(child.getId());
       }
@@ -412,71 +464,142 @@ public class MaterialButtonToggleGroup extends RelativeLayout {
    * <p>Also rearranges children such that they are shown in the correct visual order.
    */
   private void adjustChildMarginsAndUpdateLayout() {
-    for (int i = 1; i < getChildCount(); i++) {
+    int firstVisibleChildIndex = getFirstVisibleChildIndex();
+    if (firstVisibleChildIndex == -1) {
+      return;
+    }
+
+    for (int i = firstVisibleChildIndex + 1; i < getChildCount(); i++) {
       // Only adjusts margins if both adjacent children are MaterialButtons
-      MaterialButton currentButton = childrenInOrder.get(i);
-      MaterialButton previousButton = childrenInOrder.get(i - 1);
+      MaterialButton currentButton = getChildButton(i);
+      MaterialButton previousButton = getChildButton(i - 1);
 
       // Calculates the margin adjustment to be the smaller of the two adjacent stroke widths
       int smallestStrokeWidth =
           Math.min(currentButton.getStrokeWidth(), previousButton.getStrokeWidth());
 
-      LayoutParams params = buildEndAlignLayoutParams(previousButton, currentButton);
-
-      MarginLayoutParamsCompat.setMarginEnd(params, 0);
-      if (MarginLayoutParamsCompat.getMarginStart(params) != -1 * smallestStrokeWidth) {
-        MarginLayoutParamsCompat.setMarginStart(params, -1 * smallestStrokeWidth);
+      LayoutParams params = buildLayoutParams(currentButton);
+      if (getOrientation() == HORIZONTAL) {
+        MarginLayoutParamsCompat.setMarginEnd(params, 0);
+        MarginLayoutParamsCompat.setMarginStart(params, -smallestStrokeWidth);
+      } else {
+        params.bottomMargin = 0;
+        params.topMargin = -smallestStrokeWidth;
       }
 
       currentButton.setLayoutParams(params);
     }
 
-    resetFirstChildMargin();
+    resetChildMargins(firstVisibleChildIndex);
   }
 
-  private void resetFirstChildMargin() {
-    if (!childrenInOrder.isEmpty()) {
-      MaterialButton currentButton = childrenInOrder.get(0);
-      LayoutParams params = (LayoutParams) currentButton.getLayoutParams();
-      MarginLayoutParamsCompat.setMarginEnd(params, 0);
-      MarginLayoutParamsCompat.setMarginStart(params, 0);
-      currentButton.setLayoutParams(params);
+  private MaterialButton getChildButton(int index) {
+    return (MaterialButton) getChildAt(index);
+  }
+
+  private void resetChildMargins(int childIndex) {
+    if (getChildCount() == 0 || childIndex == -1) {
+      return;
     }
+
+    MaterialButton currentButton = getChildButton(childIndex);
+    LayoutParams params = (LayoutParams) currentButton.getLayoutParams();
+    if (getOrientation() == VERTICAL) {
+      params.topMargin = 0;
+      params.bottomMargin = 0;
+      return;
+    }
+
+    MarginLayoutParamsCompat.setMarginEnd(params, 0);
+    MarginLayoutParamsCompat.setMarginStart(params, 0);
+    params.leftMargin = 0;
+    params.rightMargin = 0;
   }
 
   /** Sets all corner radii to 0 except for leftmost and rightmost corners. */
-  private void updateChildShapes() {
-    int numChildren = getChildCount();
-    if (numChildren >= 1) {
-      for (int i = 0; i < numChildren; i++) {
-        MaterialButton button = childrenInOrder.get(i);
-        if (button.getShapeAppearanceModel() != null) {
-          ShapeAppearanceModel shapeAppearanceModel = button.getShapeAppearanceModel();
-          CornerData cornerData = originalCornerData.get(i);
-          if (numChildren == 1) {
-            // If there is only one child, sets its original corners
-            shapeAppearanceModel.setCornerRadii(
-                cornerData.topLeft,
-                cornerData.topRight,
-                cornerData.bottomRight,
-                cornerData.bottomLeft);
-          } else {
-            if (i == (ViewUtils.isLayoutRtl(this) ? (numChildren - 1) : 0)) {
-              // Keeps the left corners of the first child in LTR, or the last child in RTL
-              shapeAppearanceModel.setCornerRadii(cornerData.topLeft, 0, 0, cornerData.bottomLeft);
-            } else if (i != 0 && i < numChildren - 1) {
-              // Sets corner radii of all middle children to 0
-              shapeAppearanceModel.setCornerRadius(0);
-            } else if (i == (ViewUtils.isLayoutRtl(this) ? 0 : (numChildren - 1))) {
-              // Keeps the right corners of the last child in LTR, or the first child in RTL
-              shapeAppearanceModel.setCornerRadii(
-                  0, cornerData.topRight, cornerData.bottomRight, 0);
-            }
-          }
-          button.setShapeAppearanceModel(shapeAppearanceModel);
-        }
+  @VisibleForTesting
+  void updateChildShapes() {
+    int childCount = getChildCount();
+    int firstVisibleChildIndex = getFirstVisibleChildIndex();
+    int lastVisibleChildIndex = getLastVisibleChildIndex();
+    for (int i = 0; i < childCount; i++) {
+      MaterialButton button = getChildButton(i);
+      if (button.getVisibility() == GONE) {
+        continue;
+      }
+
+      ShapeAppearanceModel.Builder builder =
+          button.getShapeAppearanceModel().toBuilder();
+      CornerData newCornerData = getNewCornerData(i, firstVisibleChildIndex, lastVisibleChildIndex);
+      updateBuilderWithCornerData(builder, newCornerData);
+
+      button.setShapeAppearanceModel(builder.build());
+    }
+  }
+
+  private int getFirstVisibleChildIndex() {
+    int childCount = getChildCount();
+    for (int i = 0; i < childCount; i++) {
+      if (isChildVisible(i)) {
+        return i;
       }
     }
+
+    return -1;
+  }
+
+  private int getLastVisibleChildIndex() {
+    int childCount = getChildCount();
+    for (int i = childCount - 1; i >= 0; i--) {
+      if (isChildVisible(i)) {
+        return i;
+      }
+    }
+
+    return -1;
+  }
+
+  private boolean isChildVisible(int i) {
+    View child = getChildAt(i);
+    return child.getVisibility() != View.GONE;
+  }
+
+
+  @Nullable
+  private CornerData getNewCornerData(
+      int index,
+      int firstVisibleChildIndex,
+      int lastVisibleChildIndex) {
+    int childCount = getChildCount();
+    CornerData cornerData = originalCornerData.get(index);
+    if (childCount == 1) {
+      return cornerData;
+    }
+
+    boolean isHorizontal = getOrientation() == HORIZONTAL;
+    if (index == firstVisibleChildIndex) {
+      return isHorizontal ? CornerData.start(cornerData, this) : CornerData.top(cornerData);
+    }
+
+    if (index == lastVisibleChildIndex) {
+      return isHorizontal ? CornerData.end(cornerData, this) : CornerData.bottom(cornerData);
+    }
+
+    return null;
+  }
+
+  private static void updateBuilderWithCornerData(
+      ShapeAppearanceModel.Builder shapeAppearanceModelBuilder, @Nullable CornerData cornerData) {
+    if (cornerData == null) {
+      shapeAppearanceModelBuilder.setAllCornerSizes(0);
+      return;
+    }
+
+    shapeAppearanceModelBuilder
+        .setTopLeftCornerSize(cornerData.topLeft)
+        .setBottomLeftCornerSize(cornerData.bottomLeft)
+        .setTopRightCornerSize(cornerData.topRight)
+        .setBottomRightCornerSize(cornerData.bottomRight);
   }
 
   /**
@@ -490,14 +613,11 @@ public class MaterialButtonToggleGroup extends RelativeLayout {
    */
   private void updateCheckedStates(int childId, boolean childIsChecked) {
     for (int i = 0; i < getChildCount(); i++) {
-      MaterialButton button = childrenInOrder.get(i);
+      MaterialButton button = getChildButton(i);
       if (button.isChecked()) {
         if (singleSelection && childIsChecked && button.getId() != childId) {
           setCheckedStateForView(button.getId(), false);
-
           dispatchOnButtonChecked(button.getId(), false);
-        } else {
-          button.bringToFront();
         }
       }
     }
@@ -515,17 +635,10 @@ public class MaterialButtonToggleGroup extends RelativeLayout {
     setCheckedId(checkedId);
   }
 
-  private void setGeneratedIdIfNeeded(MaterialButton materialButton) {
-    int id = materialButton.getId();
-
+  private void setGeneratedIdIfNeeded(@NonNull MaterialButton materialButton) {
     // Generates an ID if none is set, for relative positioning purposes
-    if (id == View.NO_ID) {
-      if (VERSION.SDK_INT >= VERSION_CODES.JELLY_BEAN_MR1) {
-        id = View.generateViewId();
-      } else {
-        id = materialButton.hashCode();
-      }
-      materialButton.setId(id);
+    if (materialButton.getId() == View.NO_ID) {
+      materialButton.setId(ViewCompat.generateViewId());
     }
   }
 
@@ -536,7 +649,7 @@ public class MaterialButtonToggleGroup extends RelativeLayout {
    * @param buttonChild {@link MaterialButton} child to set up to be added to this {@link
    *     MaterialButtonToggleGroup}
    */
-  private void setupButtonChild(MaterialButton buttonChild) {
+  private void setupButtonChild(@NonNull MaterialButton buttonChild) {
     buttonChild.setMaxLines(1);
     buttonChild.setEllipsize(TruncateAt.END);
     buttonChild.setCheckable(true);
@@ -548,24 +661,46 @@ public class MaterialButtonToggleGroup extends RelativeLayout {
     buttonChild.setShouldDrawSurfaceColorStroke(true);
   }
 
-  private RelativeLayout.LayoutParams buildEndAlignLayoutParams(
-      @Nullable View startChild, View endChild) {
-    ViewGroup.LayoutParams layoutParams = endChild.getLayoutParams();
-    RelativeLayout.LayoutParams endAlignedLayoutParams =
-        new RelativeLayout.LayoutParams(layoutParams.width, layoutParams.height);
+  @NonNull
+  private LinearLayout.LayoutParams buildLayoutParams(@NonNull View child) {
+    ViewGroup.LayoutParams layoutParams = child.getLayoutParams();
+    if (layoutParams instanceof LinearLayout.LayoutParams) {
+      return (LayoutParams) layoutParams;
+    }
+    
+    LinearLayout.LayoutParams newParams =
+        new LinearLayout.LayoutParams(layoutParams.width, layoutParams.height);
 
-    if (startChild == null) {
-      return endAlignedLayoutParams;
+    return newParams;
+  }
+
+  /**
+   * We keep track of which views are pressed and checked to draw them last. This prevents visual
+   * issues with overlapping strokes.
+   */
+  @Override
+  protected int getChildDrawingOrder(int childCount, int i) {
+    if (childOrder == null || i >= childOrder.length) {
+      Log.w(LOG_TAG, "Child order wasn't updated");
+      return i;
     }
 
-    endAlignedLayoutParams.addRule(
-        ViewUtils.isLayoutRtl(this) ? LEFT_OF : RIGHT_OF, startChild.getId());
-    return endAlignedLayoutParams;
+    return childOrder[i];
+  }
+
+  private void updateChildOrder() {
+    final SortedMap<MaterialButton, Integer> viewToIndexMap = new TreeMap<>(childOrderComparator);
+    int childCount = getChildCount();
+    for (int i = 0; i < childCount; i++) {
+      viewToIndexMap.put(getChildButton(i), i);
+    }
+
+    childOrder = viewToIndexMap.values().toArray(new Integer[0]);
   }
 
   private class CheckedStateTracker implements MaterialButton.OnCheckedChangeListener {
     @Override
-    public void onCheckedChanged(MaterialButton button, boolean isChecked) {
+    public void onCheckedChanged(@NonNull MaterialButton button, boolean isChecked) {
       // Prevents infinite recursion
       if (skipCheckedStateTracker) {
         return;
@@ -576,33 +711,65 @@ public class MaterialButtonToggleGroup extends RelativeLayout {
       }
 
       dispatchOnButtonChecked(button.getId(), isChecked);
-
       updateCheckedStates(button.getId(), isChecked);
+      invalidate();
     }
   }
 
   private class PressedStateTracker implements OnPressedChangeListener {
+
     @Override
-    public void onPressedChanged(MaterialButton button, boolean isPressed) {
-      if (isPressed) {
-        button.bringToFront();
-      } else {
-        updateCheckedStates(button.getId(), button.isChecked());
-      }
+    public void onPressedChanged(@NonNull MaterialButton button, boolean isPressed) {
+      updateCheckedStates(button.getId(), button.isChecked());
+      invalidate();
     }
   }
 
   private static class CornerData {
-    final float topLeft;
-    final float topRight;
-    final float bottomRight;
-    final float bottomLeft;
 
-    CornerData(float topLeft, float topRight, float bottomRight, float bottomLeft) {
+    private static final CornerSize noCorner = new AbsoluteCornerSize(0);
+
+    CornerSize topLeft;
+    CornerSize topRight;
+    CornerSize bottomRight;
+    CornerSize bottomLeft;
+
+    CornerData(
+        CornerSize topLeft, CornerSize bottomLeft, CornerSize topRight, CornerSize bottomRight) {
       this.topLeft = topLeft;
       this.topRight = topRight;
       this.bottomRight = bottomRight;
       this.bottomLeft = bottomLeft;
+    }
+
+    /** Keep the start side of the corner original data */
+    public static CornerData start(CornerData orig, View view) {
+      return ViewUtils.isLayoutRtl(view) ? right(orig) : left(orig);
+    }
+
+    /** Keep the end side of the corner original data */
+    public static CornerData end(CornerData orig, View view) {
+      return ViewUtils.isLayoutRtl(view) ? left(orig) : right(orig);
+    }
+
+    /** Keep the left side of the corner original data */
+    public static CornerData left(CornerData orig) {
+      return new CornerData(orig.topLeft, orig.bottomLeft, noCorner, noCorner);
+    }
+
+    /** Keep the right side of the corner original data */
+    public static CornerData right(CornerData orig) {
+      return new CornerData(noCorner, noCorner, orig.topRight, orig.bottomRight);
+    }
+
+    /** Keep the top side of the corner original data */
+    public static CornerData top(CornerData orig) {
+      return new CornerData(orig.topLeft, noCorner, orig.topRight, noCorner);
+    }
+
+    /** Keep the left side of the corner original data */
+    public static CornerData bottom(CornerData orig) {
+      return new CornerData(noCorner, orig.bottomLeft, noCorner, orig.bottomRight);
     }
   }
 }
