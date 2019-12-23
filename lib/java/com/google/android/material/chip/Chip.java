@@ -226,7 +226,8 @@ public class Chip extends AppCompatCheckBox implements Delegate, Shapeable {
 
     // Chip text should not extend to more than 1 line.
     if (!chipDrawable.shouldDrawText()) {
-      setSingleLine();
+      setLines(1);
+      setHorizontallyScrolling(true);
     }
     // Chip text should be vertically center aligned and start aligned.
     // Final horizontal text origin is set during the onDraw call via canvas translation.
@@ -282,9 +283,6 @@ public class Chip extends AppCompatCheckBox implements Delegate, Shapeable {
   }
 
   private void initMinTouchTarget(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
-    if (attrs == null) {
-      return;
-    }
     // Checks if the Chip should meet Android's minimum touch target size.
     TypedArray a =
         ThemeEnforcement.obtainStyledAttributes(
@@ -323,6 +321,15 @@ public class Chip extends AppCompatCheckBox implements Delegate, Shapeable {
             (chipDrawable.getChipStartPadding()
                 + chipDrawable.getTextStartPadding()
                 + chipDrawable.calculateChipIconWidth());
+    if (insetBackgroundDrawable != null) {
+      Rect padding = new Rect();
+      insetBackgroundDrawable.getPadding(padding);
+      if (ViewCompat.getLayoutDirection(this) == ViewCompat.LAYOUT_DIRECTION_RTL) {
+        paddingEnd += padding.right;
+      } else {
+        paddingStart += padding.left;
+      }
+    }
 
     ViewCompat.setPaddingRelative(
         this, paddingStart, getPaddingTop(), paddingEnd, getPaddingBottom());
@@ -406,7 +413,6 @@ public class Chip extends AppCompatCheckBox implements Delegate, Shapeable {
       chipDrawable.setShouldDrawText(false);
       applyChipDrawable(chipDrawable);
       ensureAccessibleTouchTarget(minTouchTargetSize);
-      updateBackgroundDrawable();
     }
   }
 
@@ -416,6 +422,7 @@ public class Chip extends AppCompatCheckBox implements Delegate, Shapeable {
     } else {
       chipDrawable.setUseCompatRipple(true);
       ViewCompat.setBackground(this, getBackgroundDrawable());
+      updatePaddingInternal();
       ensureChipDrawableHasCallback();
     }
   }
@@ -446,6 +453,7 @@ public class Chip extends AppCompatCheckBox implements Delegate, Shapeable {
     chipDrawable.setUseCompatRipple(false);
     //noinspection NewApi
     ViewCompat.setBackground(this, ripple);
+    updatePaddingInternal();
   }
 
   private void unapplyChipDrawable(@Nullable ChipDrawable chipDrawable) {
@@ -667,8 +675,6 @@ public class Chip extends AppCompatCheckBox implements Delegate, Shapeable {
   @Override
   public void onChipDrawableSizeChange() {
     ensureAccessibleTouchTarget(minTouchTargetSize);
-    updateBackgroundDrawable();
-    updatePaddingInternal();
     requestLayout();
     if (VERSION.SDK_INT >= VERSION_CODES.LOLLIPOP) {
       invalidateOutline();
@@ -2220,7 +2226,11 @@ public class Chip extends AppCompatCheckBox implements Delegate, Shapeable {
   public boolean ensureAccessibleTouchTarget(@Dimension int minTargetPx) {
     minTouchTargetSize = minTargetPx;
     if (!shouldEnsureMinTouchTargetSize()) {
-      removeBackgroundInset();
+      if (insetBackgroundDrawable != null) {
+        removeBackgroundInset();
+      } else {
+        updateBackgroundDrawable();
+      }
       return false;
     }
 
@@ -2228,7 +2238,11 @@ public class Chip extends AppCompatCheckBox implements Delegate, Shapeable {
     int deltaWidth = Math.max(0, minTargetPx - chipDrawable.getIntrinsicWidth());
 
     if (deltaWidth <= 0 && deltaHeight <= 0) {
-      removeBackgroundInset();
+      if (insetBackgroundDrawable != null) {
+        removeBackgroundInset();
+      } else {
+        updateBackgroundDrawable();
+      }
       return false;
     }
 
@@ -2242,6 +2256,7 @@ public class Chip extends AppCompatCheckBox implements Delegate, Shapeable {
           && padding.bottom == deltaY
           && padding.left == deltaX
           && padding.right == deltaX) {
+        updateBackgroundDrawable();
         return true;
       }
     }
@@ -2257,6 +2272,7 @@ public class Chip extends AppCompatCheckBox implements Delegate, Shapeable {
       setMinWidth(minTargetPx);
     }
     insetChipBackgroundDrawable(deltaX, deltaY, deltaX, deltaY);
+    updateBackgroundDrawable();
     return true;
   }
 

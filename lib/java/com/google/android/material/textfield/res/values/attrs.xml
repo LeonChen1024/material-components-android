@@ -55,6 +55,10 @@
     <!-- Text color for any error message displayed.
          If set, this takes precedence over errorTextAppearance. -->
     <attr name="errorTextColor" format="color"/>
+    <!-- Text to set as the content description for the error view.
+         Should be set when the error message has special characters that a
+         screen reader is not able to announce properly. -->
+    <attr name="errorContentDescription" format="string"/>
     <!-- End icon to be shown when an error is displayed. -->
     <attr name="errorIconDrawable" format="reference"/>
     <!-- Tint color to use for the error icon. -->
@@ -92,6 +96,14 @@
          If set, this takes precedence over counterOverflowTextAppearance. -->
     <attr name="counterOverflowTextColor" format="reference"/>
 
+    <!-- The text to display as placeholder text in the text input area. -->
+    <attr name="placeholderText" format="string"/>
+    <!-- TextAppearance of the placeholder text displayed in the text input area. -->
+    <attr name="placeholderTextAppearance" format="reference"/>
+    <!-- Text color of the placeholder text displayed in the text input area.
+         If set, this takes precedence over placeholderTextAppearance. -->
+    <attr name="placeholderTextColor" format="color"/>
+
     <!-- The text to display as prefix text in the text input area. -->
     <attr name="prefixText" format="string"/>
     <!-- TextAppearance of the prefix text displayed in the text input area. -->
@@ -99,12 +111,12 @@
     <!-- Text color of the prefix text displayed in the text input area.
          If set, this takes precedence over prefixTextAppearance. -->
     <attr name="prefixTextColor" format="color"/>
-    <!-- The text to display as prefix text in the text input area. -->
+    <!-- The text to display as suffix text in the text input area. -->
     <attr name="suffixText" format="string"/>
-    <!-- TextAppearance of the prefix text displayed in the text input area. -->
+    <!-- TextAppearance of the suffix text displayed in the text input area. -->
     <attr name="suffixTextAppearance" format="reference"/>
-    <!-- Text color of the prefix text displayed in the text input area.
-         If set, this takes precedence over prefixTextAppearance. -->
+    <!-- Text color of the suffix text displayed in the text input area.
+         If set, this takes precedence over suffixTextAppearance. -->
     <attr name="suffixTextColor" format="color"/>
 
     <!-- Drawable to use for the start icon. -->
@@ -197,7 +209,9 @@
          is being displayed. If not set, it defaults to errorTextColor if on
          error state, or to counterOverflowTextColor if on overflow state. -->
     <attr name="boxStrokeErrorColor" format="color"/>
-    <!-- The color to use for the box's background color when in filled box mode. -->
+    <!-- The color to use for the box's background color when in filled box mode.
+         If a non-stateful color resource is specified, default colors will be used for the hover
+         and disabled states.  -->
     <attr name="boxBackgroundColor" format="color"/>
     <!-- The value to use for the box's stroke when in outline box mode, or for the underline stroke
          in filled mode. -->

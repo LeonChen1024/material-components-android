@@ -211,6 +211,8 @@ public class BottomSheetBehavior<V extends View> extends CoordinatorLayout.Behav
 
   private boolean isShapeExpanded;
 
+  private SettleRunnable settleRunnable = null;
+
   @Nullable private ValueAnimator interpolatorAnimator;
 
   private static final int DEF_STYLE_RES = R.style.Widget_Design_BottomSheet_Modal;
@@ -575,8 +577,19 @@ public class BottomSheetBehavior<V extends View> extends CoordinatorLayout.Behav
     int top;
     int targetState;
     if (lastNestedScrollDy > 0) {
-      top = getExpandedOffset();
-      targetState = STATE_EXPANDED;
+      if (fitToContents) {
+        top = fitToContentsOffset;
+        targetState = STATE_EXPANDED;
+      } else {
+        int currentTop = child.getTop();
+        if (currentTop > halfExpandedOffset) {
+          top = halfExpandedOffset;
+          targetState = STATE_HALF_EXPANDED;
+        } else {
+          top = expandedOffset;
+          targetState = STATE_EXPANDED;
+        }
+      }
     } else if (hideable && shouldHide(child, getYVelocity())) {
       top = parentHeight;
       targetState = STATE_HIDDEN;
@@ -1193,7 +1206,19 @@ public class BottomSheetBehavior<V extends View> extends CoordinatorLayout.Behav
       setStateInternal(STATE_SETTLING);
       // STATE_SETTLING won't animate the material shape, so do that here with the target state.
       updateDrawableForTargetState(state);
-      ViewCompat.postOnAnimation(child, new SettleRunnable(child, state));
+      if (settleRunnable == null) {
+        // If the singleton SettleRunnable instance has not been instantiated, create it.
+        settleRunnable = new SettleRunnable(child, state);
+      }
+      // If the SettleRunnable has not been posted, post it with the correct state.
+      if (settleRunnable.isPosted == false) {
+        settleRunnable.targetState = state;
+        ViewCompat.postOnAnimation(child, settleRunnable);
+        settleRunnable.isPosted = true;
+      } else {
+        // Otherwise, if it has been posted, just update the target state.
+        settleRunnable.targetState = state;
+      }
     } else {
       setStateInternal(state);
     }
@@ -1384,7 +1409,9 @@ public class BottomSheetBehavior<V extends View> extends CoordinatorLayout.Behav
 
     private final View view;
 
-    @State private final int targetState;
+    private boolean isPosted;
+
+    @State int targetState;
 
     SettleRunnable(View view, @State int targetState) {
       this.view = view;
@@ -1396,10 +1423,9 @@ public class BottomSheetBehavior<V extends View> extends CoordinatorLayout.Behav
       if (viewDragHelper != null && viewDragHelper.continueSettling(true)) {
         ViewCompat.postOnAnimation(view, this);
       } else {
-        if (state == STATE_SETTLING) {
-          setStateInternal(targetState);
-        }
+        setStateInternal(targetState);
       }
+      this.isPosted = false;
     }
   }
 

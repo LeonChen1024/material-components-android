@@ -10,12 +10,13 @@ path: /catalog/material-text-view/
 # Material Text View
 
 A MaterialTextView is a derivative of AppCompatTextView that displays text to
-the user. To provide user-editable text, see {@link EditText}.
+the user. To provide user-editable text, see
+[EditText](https://developer.android.com/reference/android/widget/EditText).
 
 ## Design & API Documentation
 
 -   [Class definition](https://github.com/material-components/material-components-android/tree/master/lib/java/com/google/android/material/textview/MaterialTextView.java)
-    <!--{: .icon-list-item.icon-list-item--link }-->
+-   [Class overview](https://developer.android.com/reference/com/google/android/material/textview/MaterialTextView)
 
 ## Usage
 

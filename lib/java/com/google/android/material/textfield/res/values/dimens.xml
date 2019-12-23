@@ -18,6 +18,8 @@
 
   <dimen name="design_textinput_caption_translate_y">5dp</dimen>
 
+  <dimen name="mtrl_textinput_counter_margin_start">16dp</dimen>
+
   <dimen name="mtrl_textinput_outline_box_expanded_padding">16dp</dimen>
 
   <dimen name="mtrl_textinput_box_corner_radius_small">0dp</dimen>
@@ -25,6 +27,8 @@
   <dimen name="mtrl_textinput_box_stroke_width_default">1dp</dimen>
   <dimen name="mtrl_textinput_box_stroke_width_focused">2dp</dimen>
   <dimen name="mtrl_textinput_box_label_cutout_padding">4dp</dimen>
+
+  <dimen name="mtrl_edittext_rectangle_top_offset">12dp</dimen>
 
   <!-- The icon views' minimum width is 48dp and since each icon is 24dp wide we need a 4dp margin
        to have the appropriate spacing before and after each icon. -->

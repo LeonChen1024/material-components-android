@@ -103,6 +103,7 @@ import java.util.LinkedHashSet;
  *       along with showing an error icon via {@link #setErrorIconDrawable}
  *   <li>Showing helper text via {@link #setHelperTextEnabled(boolean)} and {@link
  *       #setHelperText(CharSequence)}
+ *   <li>Showing placeholder text via {@link #setPlaceholderText(CharSequence)}
  *   <li>Showing prefix text via {@link #setPrefixText(CharSequence)}
  *   <li>Showing suffix text via {@link #setSuffixText(CharSequence)}
  *   <li>Showing a character counter via {@link #setCounterEnabled(boolean)} and {@link
@@ -197,6 +198,12 @@ public class TextInputLayout extends LinearLayout {
   @Nullable private TextView counterView;
   private int counterOverflowTextAppearance;
   private int counterTextAppearance;
+
+  private CharSequence placeholderText;
+  private boolean placeholderEnabled;
+  private TextView placeholderTextView;
+  @Nullable private ColorStateList placeholderTextColor;
+  private int placeholderTextAppearance;
 
   @Nullable private ColorStateList counterTextColor;
   @Nullable private ColorStateList counterOverflowTextColor;
@@ -385,6 +392,7 @@ public class TextInputLayout extends LinearLayout {
 
   @ColorInt private int defaultFilledBackgroundColor;
   @ColorInt private final int disabledFilledBackgroundColor;
+  @ColorInt private final int focusedFilledBackgroundColor;
   @ColorInt private final int hoveredFilledBackgroundColor;
 
   @ColorInt private int disabledColor;
@@ -520,10 +528,14 @@ public class TextInputLayout extends LinearLayout {
         disabledFilledBackgroundColor =
             filledBackgroundColorStateList.getColorForState(
                 new int[] {-android.R.attr.state_enabled}, -1);
+        focusedFilledBackgroundColor =
+            filledBackgroundColorStateList.getColorForState(
+                new int[] {android.R.attr.state_focused, android.R.attr.state_enabled}, -1);
         hoveredFilledBackgroundColor =
             filledBackgroundColorStateList.getColorForState(
-                new int[] {android.R.attr.state_hovered}, -1);
+                new int[] {android.R.attr.state_hovered, android.R.attr.state_enabled}, -1);
       } else {
+        focusedFilledBackgroundColor = defaultFilledBackgroundColor;
         ColorStateList mtrlFilledBackgroundColorStateList =
             AppCompatResources.getColorStateList(context, R.color.mtrl_filled_background_color);
         disabledFilledBackgroundColor =
@@ -537,6 +549,7 @@ public class TextInputLayout extends LinearLayout {
       boxBackgroundColor = Color.TRANSPARENT;
       defaultFilledBackgroundColor = Color.TRANSPARENT;
       disabledFilledBackgroundColor = Color.TRANSPARENT;
+      focusedFilledBackgroundColor = Color.TRANSPARENT;
       hoveredFilledBackgroundColor = Color.TRANSPARENT;
     }
 
@@ -571,6 +584,8 @@ public class TextInputLayout extends LinearLayout {
 
     final int errorTextAppearance =
         a.getResourceId(R.styleable.TextInputLayout_errorTextAppearance, 0);
+    final CharSequence errorContentDescription =
+        a.getText(R.styleable.TextInputLayout_errorContentDescription);
     final boolean errorEnabled = a.getBoolean(R.styleable.TextInputLayout_errorEnabled, false);
     // Initialize error icon view.
     errorIconView =
@@ -596,6 +611,7 @@ public class TextInputLayout extends LinearLayout {
     ViewCompat.setImportantForAccessibility(
         errorIconView, ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);
     errorIconView.setClickable(false);
+    errorIconView.setPressable(false);
     errorIconView.setFocusable(false);
 
     final int helperTextTextAppearance =
@@ -603,6 +619,10 @@ public class TextInputLayout extends LinearLayout {
     final boolean helperTextEnabled =
         a.getBoolean(R.styleable.TextInputLayout_helperTextEnabled, false);
     final CharSequence helperText = a.getText(R.styleable.TextInputLayout_helperText);
+
+    final int placeholderTextAppearance =
+        a.getResourceId(R.styleable.TextInputLayout_placeholderTextAppearance, 0);
+    final CharSequence placeholderText = a.getText(R.styleable.TextInputLayout_placeholderText);
 
     final int prefixTextAppearance =
         a.getResourceId(R.styleable.TextInputLayout_prefixTextAppearance, 0);
@@ -743,8 +763,11 @@ public class TextInputLayout extends LinearLayout {
     setHelperTextTextAppearance(helperTextTextAppearance);
     setErrorEnabled(errorEnabled);
     setErrorTextAppearance(errorTextAppearance);
+    setErrorContentDescription(errorContentDescription);
     setCounterTextAppearance(counterTextAppearance);
     setCounterOverflowTextAppearance(counterOverflowTextAppearance);
+    setPlaceholderText(placeholderText);
+    setPlaceholderTextAppearance(placeholderTextAppearance);
     setPrefixText(prefixText);
     setPrefixTextAppearance(prefixTextAppearance);
     setSuffixText(suffixText);
@@ -765,6 +788,10 @@ public class TextInputLayout extends LinearLayout {
     if (a.hasValue(R.styleable.TextInputLayout_counterOverflowTextColor)) {
       setCounterOverflowTextColor(
           a.getColorStateList(R.styleable.TextInputLayout_counterOverflowTextColor));
+    }
+    if (a.hasValue(R.styleable.TextInputLayout_placeholderTextColor)) {
+      setPlaceholderTextColor(
+          a.getColorStateList(R.styleable.TextInputLayout_placeholderTextColor));
     }
     if (a.hasValue(R.styleable.TextInputLayout_prefixTextColor)) {
       setPrefixTextColor(a.getColorStateList(R.styleable.TextInputLayout_prefixTextColor));
@@ -934,9 +961,11 @@ public class TextInputLayout extends LinearLayout {
       disabledColor =
           boxStrokeColorStateList.getColorForState(new int[] {-android.R.attr.state_enabled}, -1);
       hoveredStrokeColor =
-          boxStrokeColorStateList.getColorForState(new int[] {android.R.attr.state_hovered}, -1);
+          boxStrokeColorStateList.getColorForState(
+              new int[] {android.R.attr.state_hovered, android.R.attr.state_enabled}, -1);
       focusedStrokeColor =
-          boxStrokeColorStateList.getColorForState(new int[] {android.R.attr.state_focused}, -1);
+          boxStrokeColorStateList.getColorForState(
+              new int[] {android.R.attr.state_focused, android.R.attr.state_enabled}, -1);
     } else if (focusedStrokeColor != boxStrokeColorStateList.getDefaultColor()) {
       // If attribute boxStrokeColor is not a color state list but only a single value, its value
       // will be applied to the box's focus state.
@@ -1189,6 +1218,9 @@ public class TextInputLayout extends LinearLayout {
             if (counterEnabled) {
               updateCounter(s.length());
             }
+            if (placeholderEnabled) {
+              updatePlaceholderText(s.length());
+            }
           }
 
           @Override
@@ -1402,8 +1434,11 @@ public class TextInputLayout extends LinearLayout {
    * Returns whether or not this layout is actively managing a child {@link EditText}'s hint. If the
    * child is an instance of {@link TextInputEditText}, this value defines the behavior of {@link
    * TextInputEditText#getHint()}.
+   *
+   * @hide
    */
-  boolean isProvidingHint() {
+  @RestrictTo(LIBRARY_GROUP)
+  public boolean isProvidingHint() {
     return isProvidingHint;
   }
 
@@ -1579,6 +1614,30 @@ public class TextInputLayout extends LinearLayout {
   }
 
   /**
+   * Sets a content description for the error message.
+   *
+   * <p>A content description should be set when the error message contains special characters that
+   * screen readers or other accessibility systems are not able to read, so that they announce the
+   * content description instead.
+   *
+   * @param errorContentDecription Content description to set, or null to clear it
+   * @attr ref com.google.android.material.R.styleable#TextInputLayout_errorContentDescription
+   */
+  public void setErrorContentDescription(@Nullable final CharSequence errorContentDecription) {
+    indicatorViewController.setErrorContentDescription(errorContentDecription);
+  }
+
+  /**
+   * Returns the content description of the error message, or null if not set.
+   *
+   * @see #setErrorContentDescription(CharSequence)
+   */
+  @Nullable
+  public CharSequence getErrorContentDescription() {
+    return indicatorViewController.getErrorContentDescription();
+  }
+
+  /**
    * Sets an error message that will be displayed below our {@link EditText}. If the {@code error}
    * is {@code null}, the error message will be cleared.
    *
@@ -1690,6 +1749,9 @@ public class TextInputLayout extends LinearLayout {
         }
         counterView.setMaxLines(1);
         indicatorViewController.addIndicator(counterView, COUNTER_INDEX);
+        MarginLayoutParamsCompat.setMarginStart(
+            (MarginLayoutParams) counterView.getLayoutParams(),
+            getResources().getDimensionPixelOffset(R.dimen.mtrl_textinput_counter_margin_start));
         updateCounterTextAppearanceAndColor();
         updateCounter();
       } else {
@@ -1826,25 +1888,12 @@ public class TextInputLayout extends LinearLayout {
       counterView.setContentDescription(null);
       counterOverflowed = false;
     } else {
-      // Make sure the counter view region is not live to prevent spamming the user with the counter
-      // overflow message on every key press.
-      if (ViewCompat.getAccessibilityLiveRegion(counterView)
-          == ViewCompat.ACCESSIBILITY_LIVE_REGION_POLITE) {
-        ViewCompat.setAccessibilityLiveRegion(
-            counterView, ViewCompat.ACCESSIBILITY_LIVE_REGION_NONE);
-      }
       counterOverflowed = length > counterMaxLength;
       updateCounterContentDescription(
           getContext(), counterView, length, counterMaxLength, counterOverflowed);
 
       if (wasCounterOverflowed != counterOverflowed) {
         updateCounterTextAppearanceAndColor();
-
-        // Announce when the character limit is exceeded.
-        if (counterOverflowed) {
-          ViewCompat.setAccessibilityLiveRegion(
-              counterView, ViewCompat.ACCESSIBILITY_LIVE_REGION_POLITE);
-        }
       }
       counterView.setText(
           getContext().getString(R.string.character_counter_pattern, length, counterMaxLength));
@@ -1869,6 +1918,150 @@ public class TextInputLayout extends LinearLayout {
                 : R.string.character_counter_content_description,
             length,
             counterMaxLength));
+  }
+
+  /**
+   * Sets placeholder text that will be displayed in the input area when the hint is collapsed
+   * before text is entered. If the {@code placeholder} is {@code null}, any previous placeholder
+   * text will be hidden and no placeholder text will be shown.
+   *
+   * @param placeholderText Placeholder text to display
+   * @see #getPlaceholderText()
+   */
+  public void setPlaceholderText(@Nullable final CharSequence placeholderText) {
+    // If placeholder text is null, disable placeholder if it's enabled.
+    if (placeholderEnabled && TextUtils.isEmpty(placeholderText)) {
+      setPlaceholderTextEnabled(false);
+    } else {
+      if (!placeholderEnabled) {
+        // Enable the placeholder if it isn't already.
+        setPlaceholderTextEnabled(true);
+      }
+      this.placeholderText = placeholderText;
+    }
+    updatePlaceholderText();
+  }
+
+  /**
+   * Returns the placeholder text that was set to be displayed with {@link
+   * #setPlaceholderText(CharSequence)}, or <code>null</code> if there is no placeholder text.
+   *
+   * @see #setPlaceholderText(CharSequence)
+   */
+  @Nullable
+  public CharSequence getPlaceholderText() {
+    return placeholderEnabled ? placeholderText : null;
+  }
+
+  private void setPlaceholderTextEnabled(boolean placeholderEnabled) {
+    // If the enabled state is the same as before, do nothing.
+    if (this.placeholderEnabled == placeholderEnabled) {
+      return;
+    }
+
+    // Otherwise, adjust enabled state.
+    if (placeholderEnabled) {
+      placeholderTextView = new AppCompatTextView(getContext());
+      placeholderTextView.setId(R.id.textinput_placeholder);
+
+      ViewCompat.setAccessibilityLiveRegion(
+          placeholderTextView, ViewCompat.ACCESSIBILITY_LIVE_REGION_POLITE);
+
+      setPlaceholderTextAppearance(placeholderTextAppearance);
+      setPlaceholderTextColor(placeholderTextColor);
+      addPlaceholderTextView();
+    } else {
+      removePlaceholderTextView();
+      placeholderTextView = null;
+    }
+    this.placeholderEnabled = placeholderEnabled;
+  }
+
+  private void updatePlaceholderText() {
+    updatePlaceholderText(editText == null ? 0 : editText.getText().length());
+  }
+
+  private void updatePlaceholderText(int inputTextLength) {
+    if (inputTextLength == 0 && !hintExpanded) {
+      showPlaceholderText();
+    } else {
+      hidePlaceholderText();
+    }
+  }
+
+  private void showPlaceholderText() {
+    if (placeholderTextView != null && placeholderEnabled) {
+      placeholderTextView.setText(placeholderText);
+      placeholderTextView.setVisibility(VISIBLE);
+      placeholderTextView.bringToFront();
+    }
+  }
+
+  private void hidePlaceholderText() {
+    if (placeholderTextView != null && placeholderEnabled) {
+      placeholderTextView.setText(null);
+      placeholderTextView.setVisibility(INVISIBLE);
+    }
+  }
+
+  private void addPlaceholderTextView() {
+    if (placeholderTextView != null) {
+      inputFrame.addView(placeholderTextView);
+      placeholderTextView.setVisibility(VISIBLE);
+    }
+  }
+
+  private void removePlaceholderTextView() {
+    if (placeholderTextView != null) {
+      placeholderTextView.setVisibility(GONE);
+    }
+  }
+
+  /**
+   * Sets the text color used by the placeholder text in all states.
+   *
+   * @attr ref android.support.design.R.styleable#TextInputLayout_placeholderTextColor
+   */
+  public void setPlaceholderTextColor(@Nullable ColorStateList placeholderTextColor) {
+    if (this.placeholderTextColor != placeholderTextColor) {
+      this.placeholderTextColor = placeholderTextColor;
+      if (placeholderTextView != null && placeholderTextColor != null) {
+        placeholderTextView.setTextColor(placeholderTextColor);
+      }
+    }
+  }
+
+  /**
+   * Returns the ColorStateList used for the placeholder text.
+   *
+   * @attr ref android.support.design.R.styleable#TextInputLayout_placeholderTextColor
+   */
+  @Nullable
+  public ColorStateList getPlaceholderTextColor() {
+    return placeholderTextColor;
+  }
+
+  /**
+   * Sets the text color and size for the placeholder text from the specified TextAppearance
+   * resource.
+   *
+   * @attr ref android.support.design.R.styleable#TextInputLayout_placeholderTextAppearance
+   */
+  public void setPlaceholderTextAppearance(@StyleRes int placeholderTextAppearance) {
+    this.placeholderTextAppearance = placeholderTextAppearance;
+    if (placeholderTextView != null) {
+      TextViewCompat.setTextAppearance(placeholderTextView, placeholderTextAppearance);
+    }
+  }
+
+  /**
+   * Returns the TextAppearance resource used for the placeholder text color.
+   *
+   * @attr ref android.support.design.R.styleable#TextInputLayout_placeholderTextAppearance
+   */
+  @StyleRes
+  public int getPlaceholderTextAppearance() {
+    return placeholderTextAppearance;
   }
 
   /**
@@ -2467,6 +2660,7 @@ public class TextInputLayout extends LinearLayout {
             }
           });
     }
+    updatePlaceholderMeasurementsBasedOnEditText();
   }
 
   private boolean updateEditTextHeightBasedOnIcon() {
@@ -2484,6 +2678,21 @@ public class TextInputLayout extends LinearLayout {
     }
 
     return false;
+  }
+
+  private void updatePlaceholderMeasurementsBasedOnEditText() {
+    if (placeholderTextView != null && editText != null) {
+      // Use the EditText's positioning for the placeholder.
+      final int editTextGravity = this.editText.getGravity();
+      placeholderTextView.setGravity(
+          Gravity.TOP | (editTextGravity & ~Gravity.VERTICAL_GRAVITY_MASK));
+
+      placeholderTextView.setPadding(
+          editText.getCompoundPaddingLeft(),
+          editText.getCompoundPaddingTop(),
+          editText.getCompoundPaddingRight(),
+          editText.getCompoundPaddingBottom());
+    }
   }
 
   /**
@@ -3336,7 +3545,7 @@ public class TextInputLayout extends LinearLayout {
   }
 
   private static void setIconOnClickListener(
-      @NonNull View iconView,
+      @NonNull CheckableImageButton iconView,
       @Nullable OnClickListener onClickListener,
       @Nullable OnLongClickListener onLongClickListener) {
     iconView.setOnClickListener(onClickListener);
@@ -3344,18 +3553,19 @@ public class TextInputLayout extends LinearLayout {
   }
 
   private static void setIconOnLongClickListener(
-      @NonNull View iconView, @Nullable OnLongClickListener onLongClickListener) {
+      @NonNull CheckableImageButton iconView, @Nullable OnLongClickListener onLongClickListener) {
     iconView.setOnLongClickListener(onLongClickListener);
     setIconClickable(iconView, onLongClickListener);
   }
 
   private static void setIconClickable(
-      @NonNull View iconView, @Nullable OnLongClickListener onLongClickListener) {
+      @NonNull CheckableImageButton iconView, @Nullable OnLongClickListener onLongClickListener) {
     boolean iconClickable = ViewCompat.hasOnClickListeners(iconView);
     boolean iconLongClickable = onLongClickListener != null;
     boolean iconFocusable = iconClickable || iconLongClickable;
     iconView.setFocusable(iconFocusable);
     iconView.setClickable(iconClickable);
+    iconView.setPressable(iconClickable);
     iconView.setLongClickable(iconLongClickable);
     ViewCompat.setImportantForAccessibility(
         iconView,
@@ -3374,6 +3584,11 @@ public class TextInputLayout extends LinearLayout {
       updateBoxUnderlineBounds(rect);
 
       if (hintEnabled) {
+        final int editTextGravity = this.editText.getGravity();
+        collapsingTextHelper.setCollapsedTextGravity(
+            Gravity.TOP | (editTextGravity & ~Gravity.VERTICAL_GRAVITY_MASK));
+        collapsingTextHelper.setExpandedTextGravity(
+            editTextGravity & ~Gravity.VERTICAL_GRAVITY_MASK);
         collapsingTextHelper.setCollapsedBounds(calculateCollapsedTextBounds(rect));
         collapsingTextHelper.setExpandedBounds(calculateExpandedTextBounds(rect));
         collapsingTextHelper.recalculate();
@@ -3429,6 +3644,8 @@ public class TextInputLayout extends LinearLayout {
     if (cutoutEnabled()) {
       openCutout();
     }
+    showPlaceholderText();
+
     updatePrefixTextVisibility();
     updateSuffixTextVisibility();
   }
@@ -3442,7 +3659,8 @@ public class TextInputLayout extends LinearLayout {
       return;
     }
     final RectF cutoutBounds = tmpRectF;
-    collapsingTextHelper.getCollapsedTextActualBounds(cutoutBounds);
+    collapsingTextHelper.getCollapsedTextActualBounds(
+        cutoutBounds, editText.getWidth(), editText.getGravity());
     applyCutoutPadding(cutoutBounds);
     // Offset the cutout bounds by the TextInputLayout's left padding to ensure that the cutout is
     // inset relative to the TextInputLayout's bounds.
@@ -3560,6 +3778,8 @@ public class TextInputLayout extends LinearLayout {
         boxBackgroundColor = disabledFilledBackgroundColor;
       } else if (isHovered && !hasFocus) {
         boxBackgroundColor = hoveredFilledBackgroundColor;
+      } else if (hasFocus) {
+        boxBackgroundColor = focusedFilledBackgroundColor;
       } else {
         boxBackgroundColor = defaultFilledBackgroundColor;
       }
@@ -3628,6 +3848,8 @@ public class TextInputLayout extends LinearLayout {
       closeCutout();
     }
     hintExpanded = true;
+    hidePlaceholderText();
+
     updatePrefixTextVisibility();
     updateSuffixTextVisibility();
   }
@@ -3696,29 +3918,46 @@ public class TextInputLayout extends LinearLayout {
         @NonNull View host, @NonNull AccessibilityNodeInfoCompat info) {
       super.onInitializeAccessibilityNodeInfo(host, info);
       EditText editText = layout.getEditText();
-      CharSequence text = (editText != null) ? editText.getText() : null;
+      CharSequence inputText = (editText != null) ? editText.getText() : null;
       CharSequence hintText = layout.getHint();
+      CharSequence helperText = layout.getHelperText();
       CharSequence errorText = layout.getError();
-      CharSequence counterDesc = layout.getCounterOverflowDescription();
-      boolean showingText = !TextUtils.isEmpty(text);
+      int maxCharLimit = layout.getCounterMaxLength();
+      CharSequence counterOverflowDesc = layout.getCounterOverflowDescription();
+      boolean showingText = !TextUtils.isEmpty(inputText);
       boolean hasHint = !TextUtils.isEmpty(hintText);
+      boolean hasHelperText = !TextUtils.isEmpty(helperText);
       boolean showingError = !TextUtils.isEmpty(errorText);
-      boolean contentInvalid = showingError || !TextUtils.isEmpty(counterDesc);
+      boolean contentInvalid = showingError || !TextUtils.isEmpty(counterOverflowDesc);
+
+      String hint = hasHint ? hintText.toString() : "";
+      hint += ((showingError || hasHelperText) && !TextUtils.isEmpty(hint)) ? ", " : "";
+      hint += showingError ? errorText : (hasHelperText ? helperText : "");
 
       if (showingText) {
-        info.setText(text);
-      } else if (hasHint) {
-        info.setText(hintText);
+        info.setText(inputText);
+      } else if (!TextUtils.isEmpty(hint)) {
+        info.setText(hint);
       }
 
-      if (hasHint) {
-        info.setHintText(hintText);
-        info.setShowingHintText(!showingText && hasHint);
+      if (!TextUtils.isEmpty(hint)) {
+        if (VERSION.SDK_INT >= 26) {
+          info.setHintText(hint);
+        } else {
+          // Due to a TalkBack bug, setHintText has no effect in APIs < 26 so we append the hint to
+          // the text announcement. The resulting announcement is the same as in APIs >= 26.
+          String text = showingText ? (inputText + ", " + hint) : hint;
+          info.setText(text);
+        }
+        info.setShowingHintText(!showingText);
       }
+
+      // Announce when the character limit is reached.
+      info.setMaxTextLength(
+          (inputText != null && inputText.length() == maxCharLimit) ? maxCharLimit : -1);
 
       if (contentInvalid) {
-        info.setError(showingError ? errorText : counterDesc);
-        info.setContentInvalid(true);
+        info.setError(showingError ? errorText : counterOverflowDesc);
       }
     }
   }

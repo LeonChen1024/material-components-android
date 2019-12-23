@@ -24,6 +24,8 @@ import static com.google.common.truth.Truth.assertThat;
 
 import android.content.Context;
 import android.graphics.RectF;
+import android.view.View;
+import android.widget.Checkable;
 import android.widget.LinearLayout;
 import androidx.test.core.app.ApplicationProvider;
 import com.google.android.material.shape.ShapeAppearanceModel;
@@ -33,31 +35,27 @@ import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 
-/**
- * Tests for {@link com.google.android.material.button.MaterialButtonToggleGroup}.
- */
+/** Tests for {@link com.google.android.material.button.MaterialButtonToggleGroup}. */
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 21)
-public class MaterialButtonToggleGroupUnitTest {
+public class MaterialButtonToggleGroupTest {
 
   private static final float CORNER_SIZE = 10f;
   private final Context context = ApplicationProvider.getApplicationContext();
 
   private MaterialButtonToggleGroup toggleGroup;
 
-  @Before
-  public void themeApplicationContext() {
+  private void themeApplicationContext() {
     context.setTheme(R.style.Theme_MaterialComponents_Light_NoActionBar_Bridge);
   }
 
   @Before
   public void createToggleGroupWithButtons() {
+    themeApplicationContext();
     toggleGroup = new MaterialButtonToggleGroup(context);
-    float cornerSize = CORNER_SIZE;
-
     for (int i = 0; i < 3; ++i) {
       MaterialButton child = new MaterialButton(context);
-      child.setShapeAppearanceModel(child.getShapeAppearanceModel().withCornerSize(cornerSize));
+      child.setShapeAppearanceModel(child.getShapeAppearanceModel().withCornerSize(CORNER_SIZE));
       toggleGroup.addView(child, i);
       getInstrumentation().waitForIdleSync();
     }
@@ -114,5 +112,45 @@ public class MaterialButtonToggleGroupUnitTest {
             shapeAppearanceModel.getBottomRightCornerSize().getCornerSize(ignore)
         })
         .isEqualTo(corners);
+  }
+
+  @Test
+  public void singleSelection_withSelectionRequired_doesNotUnSelect() {
+    toggleGroup.setSelectionRequired(true);
+    toggleGroup.setSingleSelection(true);
+
+    View button = toggleGroup.getChildAt(0);
+    button.performClick();
+    button.performClick();
+
+    assertThat(((Checkable) button).isChecked()).isTrue();
+  }
+
+  @Test
+  public void singleSelection_withoutSelectionRequired_unSelects() {
+    toggleGroup.setSingleSelection(true);
+    toggleGroup.setSelectionRequired(false);
+
+    View button = toggleGroup.getChildAt(0);
+    button.performClick();
+    button.performClick();
+
+    assertThat(((Checkable) button).isChecked()).isFalse();
+  }
+
+  @Test
+  public void multiSelection_withSelectionRequired_unSelectsIfTwo() {
+    toggleGroup.setSingleSelection(false);
+    toggleGroup.setSelectionRequired(true);
+
+    View first = toggleGroup.getChildAt(0);
+    View second = toggleGroup.getChildAt(1);
+    first.performClick();
+    second.performClick();
+    second.performClick();
+
+    // first button is selected
+    assertThat(((Checkable) first).isChecked()).isTrue();
+    assertThat(((Checkable) second).isChecked()).isFalse();
   }
 }

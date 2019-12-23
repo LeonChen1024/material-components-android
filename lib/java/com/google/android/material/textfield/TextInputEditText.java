@@ -19,13 +19,18 @@ package com.google.android.material.textfield;
 import com.google.android.material.R;
 
 import android.content.Context;
+import android.graphics.Point;
+import android.graphics.Rect;
 import android.os.Build;
+import android.os.Build.VERSION;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.widget.AppCompatEditText;
+import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.view.View;
 import android.view.ViewParent;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 
@@ -37,6 +42,8 @@ import android.view.inputmethod.InputConnection;
  * accessibility support for {@link com.google.android.material.textfield.TextInputLayout}.
  */
 public class TextInputEditText extends AppCompatEditText {
+
+  private final Rect parentRect = new Rect();
 
   public TextInputEditText(Context context) {
     this(context, null);
@@ -106,5 +113,78 @@ public class TextInputEditText extends AppCompatEditText {
   private CharSequence getHintFromLayout() {
     TextInputLayout layout = getTextInputLayout();
     return (layout != null) ? layout.getHint() : null;
+  }
+
+  @Override
+  public void getFocusedRect(@Nullable Rect r) {
+    super.getFocusedRect(r);
+    TextInputLayout textInputLayout = getTextInputLayout();
+    if (textInputLayout != null && r != null) {
+      textInputLayout.getFocusedRect(parentRect);
+      r.bottom = parentRect.bottom;
+    }
+  }
+
+  @Override
+  public boolean getGlobalVisibleRect(@Nullable Rect r, @Nullable Point globalOffset) {
+    boolean result =  super.getGlobalVisibleRect(r, globalOffset);
+    TextInputLayout textInputLayout = getTextInputLayout();
+    if (textInputLayout != null && r != null) {
+      textInputLayout.getGlobalVisibleRect(parentRect, globalOffset);
+      r.bottom = parentRect.bottom;
+    }
+    return result;
+  }
+
+  @Override
+  public boolean requestRectangleOnScreen(@Nullable Rect rectangle) {
+    boolean result = super.requestRectangleOnScreen(rectangle);
+    TextInputLayout textInputLayout = getTextInputLayout();
+    if (textInputLayout != null) {
+      parentRect.set(
+          0,
+          textInputLayout.getHeight()
+              - getResources().getDimensionPixelOffset(R.dimen.mtrl_edittext_rectangle_top_offset),
+          textInputLayout.getWidth(),
+          textInputLayout.getHeight());
+      textInputLayout.requestRectangleOnScreen(parentRect, true);
+    }
+     return result;
+  }
+
+  @Override
+  public void onInitializeAccessibilityNodeInfo(@NonNull AccessibilityNodeInfo info) {
+    super.onInitializeAccessibilityNodeInfo(info);
+    TextInputLayout layout = getTextInputLayout();
+
+    // In APIs < 23, some things set in the parent TextInputLayout's AccessibilityDelegate get
+    // overwritten, so we set them here so that announcements are as expected.
+    if (VERSION.SDK_INT < 23 && layout != null) {
+      info.setText(getAccessibilityNodeInfoText(layout));
+    }
+  }
+
+  @NonNull
+  private String getAccessibilityNodeInfoText(@NonNull TextInputLayout layout) {
+    CharSequence inputText = getText();
+    CharSequence hintText = layout.getHint();
+    CharSequence helperText = layout.getHelperText();
+    CharSequence errorText = layout.getError();
+    boolean showingText = !TextUtils.isEmpty(inputText);
+    boolean hasHint = !TextUtils.isEmpty(hintText);
+    boolean hasHelperText = !TextUtils.isEmpty(helperText);
+    boolean showingError = !TextUtils.isEmpty(errorText);
+
+    String hint = hasHint ? hintText.toString() : "";
+    hint += ((showingError || hasHelperText) && !TextUtils.isEmpty(hint)) ? ", " : "";
+    hint += showingError ? errorText : (hasHelperText ? helperText : "");
+
+    if (showingText) {
+      return inputText + (!TextUtils.isEmpty(hint) ? (", " + hint) : "");
+    } else if (!TextUtils.isEmpty(hint)) {
+      return hint;
+    } else {
+      return "";
+    }
   }
 }
