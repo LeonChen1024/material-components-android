@@ -31,11 +31,11 @@ import android.graphics.Shader.TileMode;
 import android.graphics.drawable.Drawable;
 import android.os.Build.VERSION;
 import android.os.Build.VERSION_CODES;
+import android.view.View;
 import androidx.annotation.ColorInt;
 import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import android.view.View;
 import com.google.android.material.circularreveal.CircularRevealWidget.RevealInfo;
 import com.google.android.material.math.MathUtils;
 import java.lang.annotation.Retention;
@@ -46,7 +46,7 @@ import java.lang.annotation.RetentionPolicy;
  *
  * <p>A {@link CircularRevealWidget} subclass will call the corresponding method in this helper,
  * which contains the actual implementations for circular reveal. This helper communicates back to
- * the widget via the {@link #delegate}.
+ * the widget via the {@link Delegate}.
  */
 public class CircularRevealHelper {
 

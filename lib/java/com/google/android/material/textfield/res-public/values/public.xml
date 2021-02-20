@@ -34,7 +34,7 @@
   <public name="boxPaddingEnd" type="attr"/>
   <public name="boxPaddingBottom" type="attr"/>
   <public name="boxStrokeColor" type="attr"/>
-  <public name="boxStrokeErrorColor" format="color"/>
+  <public name="boxStrokeErrorColor" type="attr"/>
   <public name="boxStrokeWidth" type="attr"/>
   <public name="boxStrokeWidthFocused" type="attr"/>
 
@@ -44,12 +44,12 @@
   <public name="counterOverflowTextColor" type="attr"/>
   <public name="counterTextAppearance" type="attr"/>
   <public name="counterTextColor" type="attr"/>
-  <public name="prefixText" format="string"/>
-  <public name="prefixTextAppearance" format="reference"/>
-  <public name="prefixTextColor" format="color"/>
-  <public name="suffixText" format="string"/>
-  <public name="suffixTextAppearance" format="reference"/>
-  <public name="suffixTextColor" format="color"/>
+  <public name="prefixText" type="attr"/>
+  <public name="prefixTextAppearance" type="attr"/>
+  <public name="prefixTextColor" type="attr"/>
+  <public name="suffixText" type="attr"/>
+  <public name="suffixTextAppearance" type="attr"/>
+  <public name="suffixTextColor" type="attr"/>
   <public name="errorEnabled" type="attr"/>
   <public name="errorTextAppearance" type="attr"/>
   <public name="errorTextColor" type="attr"/>
@@ -62,6 +62,7 @@
   <public name="helperTextTextAppearance" type="attr"/>
   <public name="helperTextTextColor" type="attr"/>
   <public name="hintAnimationEnabled" type="attr"/>
+  <public name="expandedHintEnabled" type="attr"/>
   <public name="hintEnabled" type="attr"/>
   <public name="hintTextAppearance" type="attr"/>
   <public name="hintTextColor" type="attr"/>
@@ -90,9 +91,15 @@
   <!--Deprecated. Use endIconTintMode instead. -->
   <public name="passwordToggleTintMode" type="attr"/>
 
+  <public name="textInputLayoutFocusedRectEnabled" type="attr"/>
+
   <public name="Widget.Design.TextInputLayout" type="style"/>
   <public name="Widget.MaterialComponents.TextInputLayout.FilledBox" type="style"/>
   <public name="Widget.MaterialComponents.TextInputLayout.FilledBox.Dense" type="style"/>
   <public name="Widget.MaterialComponents.TextInputLayout.OutlinedBox" type="style"/>
   <public name="Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense" type="style"/>
+  <public name="Widget.MaterialComponents.TextInputLayout.FilledBox.ExposedDropdownMenu" type="style"/>
+  <public name="Widget.MaterialComponents.TextInputLayout.FilledBox.Dense.ExposedDropdownMenu" type="style"/>
+  <public name="Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu" type="style"/>
+  <public name="Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense.ExposedDropdownMenu" type="style"/>
 </resources>

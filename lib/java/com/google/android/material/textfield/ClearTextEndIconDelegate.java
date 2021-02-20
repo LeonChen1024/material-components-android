@@ -23,7 +23,6 @@ import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
 import android.animation.ValueAnimator;
 import android.animation.ValueAnimator.AnimatorUpdateListener;
-import androidx.annotation.NonNull;
 import androidx.appcompat.content.res.AppCompatResources;
 import android.text.Editable;
 import android.text.TextUtils;
@@ -32,8 +31,10 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.View.OnFocusChangeListener;
 import android.widget.EditText;
+import androidx.annotation.NonNull;
 import com.google.android.material.animation.AnimationUtils;
 import com.google.android.material.textfield.TextInputLayout.OnEditTextAttachedListener;
+import com.google.android.material.textfield.TextInputLayout.OnEndIconChangedListener;
 
 /** Default initialization of the clear text end icon {@link TextInputLayout.EndIconMode}. */
 class ClearTextEndIconDelegate extends EndIconDelegate {
@@ -58,23 +59,45 @@ class ClearTextEndIconDelegate extends EndIconDelegate {
           animateIcon(hasText(s));
         }
       };
+  private final OnFocusChangeListener onFocusChangeListener =
+      new OnFocusChangeListener() {
+        @Override
+        public void onFocusChange(View v, boolean hasFocus) {
+          boolean hasText = !TextUtils.isEmpty(((EditText) v).getText());
+          animateIcon(hasText && hasFocus);
+        }
+      };
   private final OnEditTextAttachedListener clearTextOnEditTextAttachedListener =
       new OnEditTextAttachedListener() {
         @Override
         public void onEditTextAttached(@NonNull TextInputLayout textInputLayout) {
           EditText editText = textInputLayout.getEditText();
-          textInputLayout.setEndIconVisible(hasText(editText.getText()));
+          textInputLayout.setEndIconVisible(editText.hasFocus() && hasText(editText.getText()));
           // Make sure there's always only one clear text text watcher added
           textInputLayout.setEndIconCheckable(false);
-          editText.setOnFocusChangeListener(new OnFocusChangeListener() {
-            @Override
-            public void onFocusChange(View v, boolean hasFocus) {
-              boolean hasText = !TextUtils.isEmpty(((EditText) v).getText());
-              animateIcon(hasText && hasFocus);
-            }
-          });
+          editText.setOnFocusChangeListener(onFocusChangeListener);
           editText.removeTextChangedListener(clearTextEndIconTextWatcher);
           editText.addTextChangedListener(clearTextEndIconTextWatcher);
+        }
+      };
+  private final OnEndIconChangedListener endIconChangedListener =
+      new OnEndIconChangedListener() {
+        @Override
+        public void onEndIconChanged(@NonNull TextInputLayout textInputLayout, int previousIcon) {
+          final EditText editText = textInputLayout.getEditText();
+          if (editText != null && previousIcon == TextInputLayout.END_ICON_CLEAR_TEXT) {
+            // Remove any listeners set on the edit text.
+            editText.post(
+                new Runnable() {
+                  @Override
+                  public void run() {
+                    editText.removeTextChangedListener(clearTextEndIconTextWatcher);
+                  }
+                });
+            if (editText.getOnFocusChangeListener() == onFocusChangeListener) {
+              editText.setOnFocusChangeListener(null);
+            }
+          }
         }
       };
 
@@ -95,10 +118,16 @@ class ClearTextEndIconDelegate extends EndIconDelegate {
         new OnClickListener() {
           @Override
           public void onClick(View v) {
-            textInputLayout.getEditText().setText(null);
+            Editable text = textInputLayout.getEditText().getText();
+            if (text != null) {
+              text.clear();
+            }
+
+            textInputLayout.refreshEndIconDrawableState();
           }
         });
     textInputLayout.addOnEditTextAttachedListener(clearTextOnEditTextAttachedListener);
+    textInputLayout.addOnEndIconChangedListener(endIconChangedListener);
     initAnimators();
   }
 
@@ -112,13 +141,13 @@ class ClearTextEndIconDelegate extends EndIconDelegate {
 
   private void animateIcon(boolean show) {
     boolean shouldSkipAnimation = textInputLayout.isEndIconVisible() == show;
-    if (show) {
+    if (show && !iconInAnim.isRunning()) {
       iconOutAnim.cancel();
       iconInAnim.start();
       if (shouldSkipAnimation) {
         iconInAnim.end();
       }
-    } else {
+    } else if (!show) {
       iconInAnim.cancel();
       iconOutAnim.start();
       if (shouldSkipAnimation) {

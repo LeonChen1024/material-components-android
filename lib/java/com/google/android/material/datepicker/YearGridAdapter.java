@@ -17,13 +17,13 @@ package com.google.android.material.datepicker;
 
 import com.google.android.material.R;
 
-import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import androidx.annotation.NonNull;
 import com.google.android.material.datepicker.MaterialCalendar.CalendarSelector;
 import java.util.Calendar;
 import java.util.Locale;
@@ -84,7 +84,9 @@ class YearGridAdapter extends RecyclerView.Adapter<YearGridAdapter.ViewHolder> {
     return new OnClickListener() {
       @Override
       public void onClick(View view) {
-        Month moveTo = Month.create(year, materialCalendar.getCurrentMonth().month);
+        Month current = Month.create(year, materialCalendar.getCurrentMonth().month);
+        CalendarConstraints calendarConstraints = materialCalendar.getCalendarConstraints();
+        Month moveTo = calendarConstraints.clamp(current);
         materialCalendar.setCurrentMonth(moveTo);
         materialCalendar.setSelector(CalendarSelector.DAY);
       }

@@ -45,14 +45,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
-import androidx.annotation.IdRes;
-import androidx.annotation.IntDef;
-import androidx.annotation.IntRange;
-import androidx.annotation.LayoutRes;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.annotation.RequiresApi;
-import androidx.annotation.RestrictTo;
 import androidx.core.graphics.drawable.DrawableCompat;
 import androidx.core.view.AccessibilityDelegateCompat;
 import androidx.core.view.OnApplyWindowInsetsListener;
@@ -70,10 +62,19 @@ import android.view.ViewGroup;
 import android.view.ViewGroup.LayoutParams;
 import android.view.ViewGroup.MarginLayoutParams;
 import android.view.ViewParent;
+import android.view.ViewTreeObserver.OnGlobalLayoutListener;
 import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityManager;
 import android.widget.FrameLayout;
+import androidx.annotation.IdRes;
+import androidx.annotation.IntDef;
+import androidx.annotation.IntRange;
+import androidx.annotation.LayoutRes;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
+import androidx.annotation.RestrictTo;
 import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import com.google.android.material.behavior.SwipeDismissBehavior;
 import com.google.android.material.color.MaterialColors;
@@ -262,12 +263,27 @@ public abstract class BaseTransientBottomBar<B extends BaseTransientBottomBar<B>
   private int duration;
   private boolean gestureInsetBottomIgnored;
   @Nullable private View anchorView;
+  private boolean anchorViewLayoutListenerEnabled = false;
+  private final OnGlobalLayoutListener anchorViewLayoutListener =
+      new OnGlobalLayoutListener() {
+        @Override
+        public void onGlobalLayout() {
+          if (!anchorViewLayoutListenerEnabled) {
+            return;
+          }
+          extraBottomMarginAnchorView = calculateBottomMarginForAnchorView();
+          updateMargins();
+        }
+      };
 
   @RequiresApi(VERSION_CODES.Q)
   private final Runnable bottomMarginGestureInsetRunnable =
       new Runnable() {
         @Override
         public void run() {
+          if (view == null || context == null) {
+            return;
+          }
           // Calculate current bottom inset, factoring in translationY to account for where the
           // view will likely be animating to.
           int currentInsetBottom =
@@ -324,11 +340,21 @@ public abstract class BaseTransientBottomBar<B extends BaseTransientBottomBar<B>
   /**
    * Constructor for the transient bottom bar.
    *
+   * <p>Uses {@link Context} from {@code parent}.
+   *
    * @param parent The parent for this transient bottom bar.
    * @param content The content view for this transient bottom bar.
    * @param contentViewCallback The content view callback for this transient bottom bar.
    */
   protected BaseTransientBottomBar(
+      @NonNull ViewGroup parent,
+      @NonNull View content,
+      @NonNull com.google.android.material.snackbar.ContentViewCallback contentViewCallback) {
+    this(parent.getContext(), parent, content, contentViewCallback);
+  }
+
+  protected BaseTransientBottomBar(
+      @NonNull Context context,
       @NonNull ViewGroup parent,
       @NonNull View content,
       @NonNull com.google.android.material.snackbar.ContentViewCallback contentViewCallback) {
@@ -344,7 +370,7 @@ public abstract class BaseTransientBottomBar<B extends BaseTransientBottomBar<B>
 
     targetParent = parent;
     this.contentViewCallback = contentViewCallback;
-    context = parent.getContext();
+    this.context = context;
 
     ThemeEnforcement.checkAppCompatTheme(context);
 
@@ -511,13 +537,22 @@ public abstract class BaseTransientBottomBar<B extends BaseTransientBottomBar<B>
     return gestureInsetBottomIgnored;
   }
 
-  /** Returns the {@link AnimationMode}. */
+  /**
+   * Returns the animation mode.
+   *
+   * @see #setAnimationMode(int)
+   */
   @AnimationMode
   public int getAnimationMode() {
     return view.getAnimationMode();
   }
 
-  /** Sets the {@link AnimationMode}. */
+  /**
+   * Sets the animation mode.
+   *
+   * @param animationMode of {@link #ANIMATION_MODE_SLIDE} or {@link #ANIMATION_MODE_FADE}.
+   * @see #getAnimationMode()
+   */
   @NonNull
   public B setAnimationMode(@AnimationMode int animationMode) {
     view.setAnimationMode(animationMode);
@@ -537,22 +572,42 @@ public abstract class BaseTransientBottomBar<B extends BaseTransientBottomBar<B>
   /** Sets the view the {@link BaseTransientBottomBar} should be anchored above. */
   @NonNull
   public B setAnchorView(@Nullable View anchorView) {
+    ViewUtils.removeOnGlobalLayoutListener(this.anchorView, anchorViewLayoutListener);
     this.anchorView = anchorView;
+    ViewUtils.addOnGlobalLayoutListener(this.anchorView, anchorViewLayoutListener);
     return (B) this;
   }
 
   /**
-   * Sets the id of the view the {@link BaseTransientBottomBar} should be anchored above.
+   * Sets the view the {@link BaseTransientBottomBar} should be anchored above by id.
    *
    * @throws IllegalArgumentException if the anchor view is not found.
    */
   @NonNull
   public B setAnchorView(@IdRes int anchorViewId) {
-    this.anchorView = targetParent.findViewById(anchorViewId);
-    if (this.anchorView == null) {
+    View anchorView = targetParent.findViewById(anchorViewId);
+    if (anchorView == null) {
       throw new IllegalArgumentException("Unable to find anchor view with id: " + anchorViewId);
     }
-    return (B) this;
+    return setAnchorView(anchorView);
+  }
+
+  /**
+   * Returns whether the anchor view layout listener is enabled.
+   *
+   * @see #setAnchorViewLayoutListenerEnabled(boolean)
+   */
+  public boolean isAnchorViewLayoutListenerEnabled() {
+    return anchorViewLayoutListenerEnabled;
+  }
+
+  /**
+   * Sets whether the anchor view layout listener is enabled. If enabled, the {@link
+   * BaseTransientBottomBar} will recalculate and update its position when the position of the
+   * anchor view is changed.
+   */
+  public void setAnchorViewLayoutListenerEnabled(boolean anchorViewLayoutListenerEnabled) {
+    this.anchorViewLayoutListenerEnabled = anchorViewLayoutListenerEnabled;
   }
 
   /**
@@ -744,7 +799,9 @@ public abstract class BaseTransientBottomBar<B extends BaseTransientBottomBar<B>
       animateViewIn();
     } else {
       // Else if animations are disabled, just make view VISIBLE and call back now
-      view.setVisibility(View.VISIBLE);
+      if (view.getParent() != null) {
+        view.setVisibility(View.VISIBLE);
+      }
       onViewShown();
     }
   }
@@ -778,7 +835,9 @@ public abstract class BaseTransientBottomBar<B extends BaseTransientBottomBar<B>
         new SwipeDismissBehavior.OnDismissListener() {
           @Override
           public void onDismiss(@NonNull View view) {
-            view.setVisibility(View.GONE);
+            if (view.getParent() != null) {
+              view.setVisibility(View.GONE);
+            }
             dispatchDismiss(BaseCallback.DISMISS_EVENT_SWIPE);
           }
 
@@ -829,8 +888,13 @@ public abstract class BaseTransientBottomBar<B extends BaseTransientBottomBar<B>
         new Runnable() {
           @Override
           public void run() {
+            if (view == null) {
+              return;
+            }
             // Make view VISIBLE now that we are about to start the enter animation
-            view.setVisibility(View.VISIBLE);
+            if (view.getParent() != null) {
+              view.setVisibility(View.VISIBLE);
+            }
             if (view.getAnimationMode() == ANIMATION_MODE_FADE) {
               startFadeInAnimation();
             } else {
@@ -1040,6 +1104,9 @@ public abstract class BaseTransientBottomBar<B extends BaseTransientBottomBar<B>
 
   /** Returns true if we should animate the Snackbar view in/out. */
   boolean shouldAnimate() {
+    if (accessibilityManager == null) {
+      return true;
+    }
     int feedbackFlags = AccessibilityServiceInfo.FEEDBACK_SPOKEN;
     List<AccessibilityServiceInfo> serviceList =
         accessibilityManager.getEnabledAccessibilityServiceList(feedbackFlags);

@@ -22,6 +22,7 @@ following guides:
 *   [Color Theming](theming/Color.md)
 *   [Typography Theming](theming/Typography.md)
 *   [Shape Theming](theming/Shape.md)
+*   [Motion Theming](theming/Motion.md)
 
 Additionally, take a look at our [Dark Theme](theming/Dark.md) guide for
 information on how to apply the
@@ -29,15 +30,14 @@ information on how to apply the
 to your app.
 
 ## Useful Links
-- [Getting Started](getting-started.md)
-- [Contributing](contributing.md)
-- [Building From Source](building-from-source.md)
-- [Catalog App](catalog-app.md)
-- [Class
-  documentation](https://developer.android.com/reference/com/google/android/material/classes)
-- [MDC-Android on Stack
-  Overflow](https://www.stackoverflow.com/questions/tagged/material-components+android)
-- [Android Developer’s
-  Guide](https://developer.android.com/training/material/index.html)
-- [Material.io](https://www.material.io)
-- [Material Design Guidelines](https://material.google.com)
+
+-   [Getting Started](getting-started.md)
+-   [Contributing](contributing.md)
+-   [Using Snapshot Version](using-snapshot-version.md)
+-   [Building From Source](building-from-source.md)
+-   [Catalog App](catalog-app.md)
+-   [Class documentation](https://developer.android.com/reference/com/google/android/material/classes)
+-   [MDC-Android on Stack Overflow](https://www.stackoverflow.com/questions/tagged/material-components+android)
+-   [Android Developer’s Guide](https://developer.android.com/training/material/index.html)
+-   [Material.io](https://www.material.io)
+-   [Material Design Guidelines](https://material.google.com)

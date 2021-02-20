@@ -20,12 +20,12 @@ import io.material.catalog.R;
 
 import android.animation.ValueAnimator;
 import android.os.Bundle;
-import androidx.annotation.Nullable;
 import androidx.core.view.ViewCompat;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import androidx.annotation.Nullable;
 import com.google.android.material.shape.MaterialShapeDrawable;
 import io.material.catalog.feature.DemoFragment;
 
@@ -44,8 +44,7 @@ public class ElevationAnimationDemoFragment extends DemoFragment {
 
     TextView translationZLabelView = view.findViewById(R.id.translation_z_label);
 
-    float maxTranslationZ =
-        getResources().getDimension(R.dimen.cat_elevation_demo_max_translation_z);
+    float maxTranslationZ = getResources().getDimension(R.dimen.cat_elevation_max_translation_z);
     int maxTranslationZDp = (int) (maxTranslationZ / getResources().getDisplayMetrics().density);
     translationZLabelView.setText(
         getString(R.string.cat_elevation_animation_label, maxTranslationZDp));

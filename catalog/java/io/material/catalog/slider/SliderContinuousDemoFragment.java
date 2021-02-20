@@ -19,13 +19,13 @@ package io.material.catalog.slider;
 import io.material.catalog.R;
 
 import android.os.Bundle;
-import androidx.annotation.IdRes;
-import androidx.annotation.Nullable;
 import androidx.appcompat.widget.SwitchCompat;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import androidx.annotation.IdRes;
+import androidx.annotation.Nullable;
 import com.google.android.material.slider.Slider;
 import io.material.catalog.feature.DemoFragment;
 
@@ -55,8 +55,8 @@ public class SliderContinuousDemoFragment extends DemoFragment {
       final String valueFormat) {
     final TextView sliderValue = view.findViewById(valueId);
     final Slider slider = view.findViewById(sliderId);
-    slider.setOnChangeListener(
-        (slider1, value) -> sliderValue.setText(String.format(valueFormat, value)));
+    slider.addOnChangeListener(
+        (slider1, value, fromUser) -> sliderValue.setText(String.format(valueFormat, value)));
     slider.setValue(slider.getValueFrom());
     SwitchCompat switchButton = view.findViewById(switchId);
     switchButton.setOnCheckedChangeListener(

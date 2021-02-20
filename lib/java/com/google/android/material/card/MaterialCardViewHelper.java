@@ -21,7 +21,6 @@ import com.google.android.material.R;
 import static androidx.annotation.RestrictTo.Scope.LIBRARY_GROUP;
 
 import android.content.res.ColorStateList;
-import android.content.res.Resources;
 import android.content.res.TypedArray;
 import android.graphics.Color;
 import android.graphics.Rect;
@@ -33,6 +32,10 @@ import android.graphics.drawable.StateListDrawable;
 import android.os.Build;
 import android.os.Build.VERSION;
 import android.os.Build.VERSION_CODES;
+import androidx.core.graphics.drawable.DrawableCompat;
+import androidx.core.view.ViewCompat;
+import android.util.AttributeSet;
+import android.view.View;
 import androidx.annotation.ColorInt;
 import androidx.annotation.Dimension;
 import androidx.annotation.FloatRange;
@@ -41,10 +44,6 @@ import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.annotation.RestrictTo;
 import androidx.annotation.StyleRes;
-import androidx.core.graphics.drawable.DrawableCompat;
-import androidx.core.view.ViewCompat;
-import android.util.AttributeSet;
-import android.view.View;
 import androidx.cardview.widget.CardView;
 import com.google.android.material.color.MaterialColors;
 import com.google.android.material.resources.MaterialResources;
@@ -97,8 +96,8 @@ class MaterialCardViewHelper {
   // Will always wrapped in an InsetDrawable
   @NonNull private final MaterialShapeDrawable foregroundContentDrawable;
 
-  @Dimension private final int checkedIconMargin;
-  @Dimension private final int checkedIconSize;
+  @Dimension private int checkedIconMargin;
+  @Dimension private int checkedIconSize;
   @Dimension private int strokeWidth;
 
   // If card is clickable, this is the clickableForegroundDrawable otherwise it draws the stroke.
@@ -140,11 +139,6 @@ class MaterialCardViewHelper {
     foregroundContentDrawable = new MaterialShapeDrawable();
     setShapeAppearanceModel(shapeAppearanceModelBuilder.build());
 
-    Resources resources = card.getResources();
-    // TODO(b/145298914): support custom sizing
-    checkedIconMargin = resources.getDimensionPixelSize(R.dimen.mtrl_card_checked_icon_margin);
-    checkedIconSize = resources.getDimensionPixelSize(R.dimen.mtrl_card_checked_icon_size);
-
     cardViewAttributes.recycle();
   }
 
@@ -165,6 +159,10 @@ class MaterialCardViewHelper {
     setCheckedIcon(
         MaterialResources.getDrawable(
             materialCardView.getContext(), attributes, R.styleable.MaterialCardView_checkedIcon));
+    setCheckedIconSize(
+        attributes.getDimensionPixelSize(R.styleable.MaterialCardView_checkedIconSize, 0));
+    setCheckedIconMargin(
+        attributes.getDimensionPixelSize(R.styleable.MaterialCardView_checkedIconMargin, 0));
 
     rippleColor =
         MaterialResources.getColorStateList(
@@ -181,8 +179,7 @@ class MaterialCardViewHelper {
             attributes,
             R.styleable.MaterialCardView_cardForegroundColor);
 
-    foregroundContentDrawable.setFillColor(
-        foregroundColor == null ? ColorStateList.valueOf(Color.TRANSPARENT) : foregroundColor);
+    setCardForegroundColor(foregroundColor);
 
     updateRippleColor();
     updateElevation();
@@ -245,6 +242,15 @@ class MaterialCardViewHelper {
 
   ColorStateList getCardBackgroundColor() {
     return bgDrawable.getFillColor();
+  }
+
+  void setCardForegroundColor(@Nullable ColorStateList foregroundColor) {
+    foregroundContentDrawable.setFillColor(
+        foregroundColor == null ? ColorStateList.valueOf(Color.TRANSPARENT) : foregroundColor);
+  }
+
+  ColorStateList getCardForegroundColor() {
+    return foregroundContentDrawable.getFillColor();
   }
 
   void setUserContentPadding(int left, int top, int right, int bottom) {
@@ -389,10 +395,34 @@ class MaterialCardViewHelper {
     }
   }
 
+  @Dimension
+  int getCheckedIconSize() {
+    return checkedIconSize;
+  }
+
+  void setCheckedIconSize(@Dimension int checkedIconSize) {
+    this.checkedIconSize = checkedIconSize;
+  }
+
+  @Dimension
+  int getCheckedIconMargin() {
+    return checkedIconMargin;
+  }
+
+  void setCheckedIconMargin(@Dimension int checkedIconMargin) {
+    this.checkedIconMargin = checkedIconMargin;
+  }
+
   void onMeasure(int measuredWidth, int measuredHeight) {
     if (clickableForegroundDrawable != null) {
       int left = measuredWidth - checkedIconMargin - checkedIconSize;
       int bottom = measuredHeight - checkedIconMargin - checkedIconSize;
+      boolean isPreLollipop = VERSION.SDK_INT < VERSION_CODES.LOLLIPOP;
+      if (isPreLollipop || materialCardView.getUseCompatPadding()) {
+        bottom -= (int) Math.ceil(2f * calculateVerticalBackgroundPadding());
+        left -= (int) Math.ceil(2f * calculateHorizontalBackgroundPadding());
+      }
+
       int right = checkedIconMargin;
       if (ViewCompat.getLayoutDirection(materialCardView) == ViewCompat.LAYOUT_DIRECTION_RTL) {
         // swap left and right

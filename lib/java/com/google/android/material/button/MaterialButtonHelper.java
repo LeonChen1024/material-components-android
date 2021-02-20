@@ -31,11 +31,12 @@ import android.graphics.drawable.LayerDrawable;
 import android.graphics.drawable.RippleDrawable;
 import android.os.Build.VERSION;
 import android.os.Build.VERSION_CODES;
+import androidx.core.graphics.drawable.DrawableCompat;
+import androidx.core.view.ViewCompat;
+import androidx.annotation.Dimension;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RestrictTo;
-import androidx.core.graphics.drawable.DrawableCompat;
-import androidx.core.view.ViewCompat;
 import com.google.android.material.color.MaterialColors;
 import com.google.android.material.internal.ViewUtils;
 import com.google.android.material.resources.MaterialResources;
@@ -71,6 +72,7 @@ class MaterialButtonHelper {
   private boolean cornerRadiusSet = false;
   private boolean checkable;
   private LayerDrawable rippleDrawable;
+  private int elevation;
 
   MaterialButtonHelper(MaterialButton button, @NonNull ShapeAppearanceModel shapeAppearanceModel) {
     materialButton = button;
@@ -108,7 +110,7 @@ class MaterialButtonHelper {
             materialButton.getContext(), attributes, R.styleable.MaterialButton_rippleColor);
 
     checkable = attributes.getBoolean(R.styleable.MaterialButton_android_checkable, false);
-    int elevation = attributes.getDimensionPixelSize(R.styleable.MaterialButton_elevation, 0);
+    elevation = attributes.getDimensionPixelSize(R.styleable.MaterialButton_elevation, 0);
 
     // Store padding before setting background, since background overwrites padding values
     int paddingStart = ViewCompat.getPaddingStart(materialButton);
@@ -117,13 +119,11 @@ class MaterialButtonHelper {
     int paddingBottom = materialButton.getPaddingBottom();
 
     // Update materialButton's background without triggering setBackgroundOverwritten()
-    materialButton.setInternalBackground(createBackground());
-
-    MaterialShapeDrawable materialShapeDrawable = getMaterialShapeDrawable();
-    if (materialShapeDrawable != null) {
-      materialShapeDrawable.setElevation(elevation);
+    if (attributes.hasValue(R.styleable.MaterialButton_android_background)) {
+      setBackgroundOverwritten();
+    } else {
+      updateBackground();
     }
-
     // Set the stored padding values
     ViewCompat.setPaddingRelative(
         materialButton,
@@ -131,6 +131,14 @@ class MaterialButtonHelper {
         paddingTop + insetTop,
         paddingEnd + insetRight,
         paddingBottom + insetBottom);
+  }
+
+  private void updateBackground() {
+    materialButton.setInternalBackground(createBackground());
+    MaterialShapeDrawable materialShapeDrawable = getMaterialShapeDrawable();
+    if (materialShapeDrawable != null) {
+      materialShapeDrawable.setElevation(elevation);
+    }
   }
 
   /**
@@ -385,4 +393,43 @@ class MaterialButtonHelper {
   ShapeAppearanceModel getShapeAppearanceModel() {
     return this.shapeAppearanceModel;
   }
+
+  public void setInsetBottom(@Dimension int newInsetBottom) {
+    setVerticalInsets(insetTop, newInsetBottom);
+  }
+
+  public int getInsetBottom() {
+    return insetBottom;
+  }
+
+  public void setInsetTop(@Dimension int newInsetTop) {
+    setVerticalInsets(newInsetTop, insetBottom);
+  }
+
+  private void setVerticalInsets(@Dimension int newInsetTop, @Dimension int newInsetBottom) {
+    // Store padding before setting background, since background overwrites padding values
+    int paddingStart = ViewCompat.getPaddingStart(materialButton);
+    int paddingTop = materialButton.getPaddingTop();
+    int paddingEnd = ViewCompat.getPaddingEnd(materialButton);
+    int paddingBottom = materialButton.getPaddingBottom();
+    int oldInsetTop = insetTop;
+    int oldInsetBottom = insetBottom;
+    insetBottom = newInsetBottom;
+    insetTop = newInsetTop;
+    if (!backgroundOverwritten) {
+      updateBackground();
+    }
+    // Set the stored padding values
+    ViewCompat.setPaddingRelative(
+        materialButton,
+        paddingStart,
+        paddingTop + newInsetTop - oldInsetTop,
+        paddingEnd,
+        paddingBottom + newInsetBottom - oldInsetBottom);
+  }
+
+  public int getInsetTop() {
+    return insetTop;
+  }
+
 }

@@ -102,7 +102,7 @@
     <item name="boxBackgroundColor">@color/mtrl_filled_background_color</item>
     <item name="endIconTint">@color/mtrl_filled_icon_tint</item>
     <item name="startIconTint">@color/mtrl_filled_icon_tint</item>
-    <item name="boxCollapsedPaddingTop">12dp</item>
+    <item name="boxCollapsedPaddingTop">10dp</item>
     <item name="boxStrokeColor">@color/mtrl_filled_stroke_color</item>
     <item name="shapeAppearanceOverlay">
       @style/ShapeAppearanceOverlay.MaterialComponents.TextInputLayout.FilledBox
@@ -113,7 +113,6 @@
     <item name="materialThemeOverlay">
       @style/ThemeOverlay.MaterialComponents.TextInputEditText.FilledBox.Dense
     </item>
-    <item name="boxCollapsedPaddingTop">8dp</item>
   </style>
 
   <style name="Widget.MaterialComponents.TextInputLayout.OutlinedBox" parent="Base.Widget.MaterialComponents.TextInputLayout">
@@ -158,24 +157,36 @@
     <item name="endIconMode">dropdown_menu</item>
   </style>
 
+  <style name="Widget.Design.TextInputEditText" parent="Widget.AppCompat.EditText">
+    <item name="enforceMaterialTheme">false</item>
+    <item name="enforceTextAppearance">false</item>
+  </style>
+
   <!-- Base style for TextInputEditText. You should use one of the sub-styles instead. -->
-  <style name="Base.Widget.MaterialComponents.TextInputEditText" parent="Widget.AppCompat.EditText">
+  <style name="Base.Widget.MaterialComponents.TextInputEditText" parent="Widget.Design.TextInputEditText">
+    <item name="enforceMaterialTheme">true</item>
+    <item name="enforceTextAppearance">true</item>
     <item name="android:background">@null</item>
-    <item name="android:paddingStart" tools:ignore="NewApi">12dp</item>
-    <item name="android:paddingEnd" tools:ignore="NewApi">12dp</item>
-    <item name="android:paddingLeft">12dp</item>
-    <item name="android:paddingRight">12dp</item>
-    <item name="android:paddingTop">16dp</item>
-    <item name="android:paddingBottom">16dp</item>
+    <item name="android:paddingStart" tools:ignore="NewApi">16dp</item>
+    <item name="android:paddingEnd" tools:ignore="NewApi">16dp</item>
+    <item name="android:paddingLeft">16dp</item>
+    <item name="android:paddingRight">16dp</item>
+    <!-- Edit text's default text size is 16sp which currently equals to 22dp total line height, so
+         we need a total of 34dp to get the 56dp height of the default layout. -->
+    <item name="android:paddingTop">17dp</item>
+    <item name="android:paddingBottom">17dp</item>
     <item name="android:textAppearance">?attr/textAppearanceSubtitle1</item>
+    <item name="textInputLayoutFocusedRectEnabled">true</item>
   </style>
 
   <style name="Widget.MaterialComponents.TextInputEditText.FilledBox" parent="Base.Widget.MaterialComponents.TextInputEditText">
-    <item name="android:paddingTop">28dp</item>
-    <item name="android:paddingBottom">12dp</item>
+    <!-- Padding values that total 34dp to visually match the spec. -->
+    <item name="android:paddingTop">24dp</item>
+    <item name="android:paddingBottom">10dp</item>
   </style>
 
   <style name="Widget.MaterialComponents.TextInputEditText.FilledBox.Dense">
+    <!-- Dense layout height is 54dp so we need a total of 32dp of top and bottom padding. -->
     <item name="android:paddingTop">24dp</item>
     <item name="android:paddingBottom">8dp</item>
   </style>
@@ -189,13 +200,17 @@
 
   <!-- Base style for AutoCompleteTextView. You should use one of the sub-styles instead. -->
   <style name="Base.Widget.MaterialComponents.AutoCompleteTextView" parent="Widget.AppCompat.AutoCompleteTextView">
+    <item name="enforceMaterialTheme">true</item>
+    <item name="enforceTextAppearance">true</item>
     <item name="android:background">@null</item>
-    <item name="android:paddingStart" tools:ignore="NewApi">12dp</item>
-    <item name="android:paddingEnd" tools:ignore="NewApi">12dp</item>
-    <item name="android:paddingLeft">12dp</item>
-    <item name="android:paddingRight">12dp</item>
-    <item name="android:paddingTop">16dp</item>
-    <item name="android:paddingBottom">16dp</item>
+    <item name="android:paddingStart" tools:ignore="NewApi">16dp</item>
+    <item name="android:paddingEnd" tools:ignore="NewApi">16dp</item>
+    <item name="android:paddingLeft">16dp</item>
+    <item name="android:paddingRight">16dp</item>
+    <!-- Edit text's default text size is 16sp which currently equals to 22dp total line height, so
+     we need a total of 34dp to get the 56dp height of the default layout. -->
+    <item name="android:paddingTop">17dp</item>
+    <item name="android:paddingBottom">17dp</item>
     <item name="android:textAppearance">?attr/textAppearanceSubtitle1</item>
     <item name="android:dropDownVerticalOffset">@dimen/mtrl_exposed_dropdown_menu_popup_vertical_offset</item>
     <item name="android:popupElevation" tools:ignore="NewApi">@dimen/mtrl_exposed_dropdown_menu_popup_elevation</item>
@@ -203,11 +218,13 @@
 
   <!-- Styles for the AutocompleteTextView to be used if an ExposedDropdownMenu style is being used. -->
   <style name="Widget.MaterialComponents.AutoCompleteTextView.FilledBox" parent="Base.Widget.MaterialComponents.AutoCompleteTextView">
-    <item name="android:paddingTop">28dp</item>
-    <item name="android:paddingBottom">12dp</item>
+    <!-- Padding values that total 34dp to visually match the spec. -->
+    <item name="android:paddingTop">24dp</item>
+    <item name="android:paddingBottom">10dp</item>
   </style>
 
   <style name="Widget.MaterialComponents.AutoCompleteTextView.FilledBox.Dense">
+    <!-- Dense layout height is 54dp so we need a total of 32dp of top and bottom padding. -->
     <item name="android:paddingTop">24dp</item>
     <item name="android:paddingBottom">8dp</item>
   </style>

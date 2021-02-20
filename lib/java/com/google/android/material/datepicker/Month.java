@@ -15,10 +15,12 @@
  */
 package com.google.android.material.datepicker;
 
+import android.content.Context;
 import android.os.Parcel;
 import android.os.Parcelable;
 import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.Arrays;
@@ -47,12 +49,13 @@ final class Month implements Comparable<Month>, Parcelable {
   @interface Months {}
 
   @NonNull private final Calendar firstOfMonth;
-  @NonNull private final String longName;
   @Months final int month;
   final int year;
   final int daysInWeek;
   final int daysInMonth;
   final long timeInMillis;
+
+  @Nullable private String longName;
 
   private Month(@NonNull Calendar rawCalendar) {
     rawCalendar.set(Calendar.DAY_OF_MONTH, 1);
@@ -61,7 +64,6 @@ final class Month implements Comparable<Month>, Parcelable {
     year = firstOfMonth.get(Calendar.YEAR);
     daysInWeek = firstOfMonth.getMaximum(Calendar.DAY_OF_WEEK);
     daysInMonth = firstOfMonth.getActualMaximum(Calendar.DAY_OF_MONTH);
-    longName = UtcDates.getYearMonthFormat().format(firstOfMonth.getTime());
     timeInMillis = firstOfMonth.getTimeInMillis();
   }
 
@@ -93,11 +95,11 @@ final class Month implements Comparable<Month>, Parcelable {
   }
 
   /**
-   * Returns the {@link Month} that contains today in the default timezone (as per {@link
-   * Calendar#getInstance()}.
+   * Returns the {@link Month} that contains the first moment in current month in the default
+   * timezone (as per {@link Calendar#getInstance()}.
    */
   @NonNull
-  static Month today() {
+  static Month current() {
     return new Month(UtcDates.getTodayCalendar());
   }
 
@@ -168,6 +170,12 @@ final class Month implements Comparable<Month>, Parcelable {
     return dayCalendar.getTimeInMillis();
   }
 
+  int getDayOfMonth(long date) {
+    Calendar dayCalendar = UtcDates.getDayCopy(firstOfMonth);
+    dayCalendar.setTimeInMillis(date);
+    return dayCalendar.get(Calendar.DAY_OF_MONTH);
+  }
+
   /**
    * Returns a {@link com.google.android.material.datepicker.Month} {@code months} months after this
    * instance.
@@ -181,7 +189,10 @@ final class Month implements Comparable<Month>, Parcelable {
 
   /** Returns a localized String representation of the month name and year. */
   @NonNull
-  String getLongName() {
+  String getLongName(Context context) {
+    if (longName == null) {
+      longName = DateStrings.getYearMonth(context, firstOfMonth.getTimeInMillis());
+    }
     return longName;
   }
 

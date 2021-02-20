@@ -4,14 +4,14 @@ layout: detail
 section: components
 excerpt: "Pickers are modals that request a user choose a date or time."
 iconId: picker
-path: /catalog/picker
+path: /catalog/picker/
 -->
 
-## Date Pickers
+# Date Pickers
 
 Date Pickers allow users to select a single date or date range.
 
-## Design
+**Design**
 
 [Material Design: Pickers](https://material.io/design/components/pickers.html)
 
@@ -27,7 +27,7 @@ These classes allow you to
 -   Select the theme: dialog, fullscreen, or default (dialog for single date,
     fullscreen for range).
 -   Select the bounds: bounds can be restricted to any contiguous set of months.
-    Defaults Janaury 1900 to December 2100.
+    Defaults January 1900 to December 2100.
 -   Select valid days: valid days can restrict selections to weekdays only.
     Defaults to all days as valid.
 -   Set a title.
@@ -75,7 +75,3 @@ The
 [Picker Package](https://github.com/material-components/material-components-android/tree/master/lib/java/com/google/android/material/datepicker)
 contains the code for this component, with the main entry point being
 [MaterialDatePicker](https://github.com/material-components/material-components-android/tree/master/lib/java/com/google/android/material/datepicker/MaterialDatePicker.java).
-
-## Time Pickers
-
-Time Pickers are currently not under development.

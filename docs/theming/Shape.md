@@ -11,7 +11,7 @@ path: /theming/shape/
 
 Material Design encourages brand expression through shapes. The Material
 Components library offers a `shape` library that can be used to create
-non-standard shapes using `MaterialShapeDrawable`s, a `Drawable` that can draw
+non-standard shapes using a `MaterialShapeDrawable`, a `Drawable` that can draw
 custom shapes while taking shadows, elevation, scale and color into account.
 
 On top of the shape library, the Material Components library provides a
@@ -23,7 +23,6 @@ feel of your app.
 
 -   [Material Design guidelines:
     Shape](https://material.io/go/design-shape)
-    <!--{: .icon-list-item.icon-list-item--spec }-->
 
 ## How it works
 
@@ -66,7 +65,10 @@ Attribute Name                   | Description            | Default Value
 
 Aside from defining these attributes in your theme, you likely will not need to
 reference these attributes at all; the widget styles are already mapped to the
-appropriate theme attribute to create a seamless shape theming experience.
+appropriate theme attribute to create a seamless shape theming experience. To
+change individual shapes throughout your app, you should use the
+[shapeAppearance and shapeAppearanceOverlay](#shapeappearance-and-shapeappearanceoverlay-attributes)
+attributes rather than redefining these theme level attributes.
 
 ## Usage
 
@@ -128,9 +130,9 @@ your theme. This will allow
 [components that support shape theming](#supported-components) to read in the
 customized values and change their shapes accordingly.
 
-Let's say you want to change the corners in your app to cut corners. To
-accomplish this, define the shape theme attributes to point to custom style
-references that contain shape values:
+Let's say you want to change the small and medium components' corners in your
+app to cut corners. To accomplish this, define the shape theme attributes to
+point to custom style references that contain shape values:
 
 ```xml
 <style name="Theme.MyApp" parent="Theme.MaterialComponents.Light">
@@ -170,13 +172,13 @@ style themselves according to the themed shape values.
 
 #### Theme-wide component overrides
 
-You can change a component's shape across the entire app by overriding the
-component and defining a custom `shapeAppearanceOverlay`.
+You can change a component's shape across the entire app by defining a custom
+`shapeAppearanceOverlay` in the component's style.
 
 Let's say you wanted to modify `MaterialCardView` so that it uses 16dp rounded
-corners acrss the entire app. All you'd have to do is define your own card style
-that extends from the widget's style, and set the relevant attributes to the
-desired theme attributes:
+corners across the entire app. All you'd have to do is define your own card
+style that extends from the widget's style, and set the relevant attributes to
+the desired theme attributes:
 
 ```xml
 <style name="Widget.MyApp.MaterialCardView" parent="Widget.MaterialComponents.MaterialCardView">
@@ -193,7 +195,7 @@ And define `ShapeAppearanceOverlay.MyApp.MaterialCardView` as follows:
 </style>
 ```
 
-Then make sure to define the custom component style in your theme:
+Then make sure to set component's style in your theme to your custom style:
 
 ```xml
 <style name="Theme.MyApp" parent="Theme.MaterialComponents.Light">
@@ -213,7 +215,8 @@ that should have 16dp cut corners. To change that card's `cornerFamily`, you can
 set the `shapeAppearanceOverlay` attribute on the card in your layout.
 
 Define a custom `shapeAppearanceOverlay` style with just the attribute you want
-to overlay on top of the existing `shapeAppearance`:
+to overlay on top of the existing `shapeAppearance`. In this case, you would set
+`cornerFamily` to `cut`:
 
 ```xml
 <style name="ShapeAppearanceOverlay.MyApp.MaterialCardView.Cut" parent="">
@@ -239,23 +242,25 @@ Then, set the card's `shapeAppearanceOverlay` attribute to that
 </com.google.android.material.card.MaterialCardView>
 ```
 
-The card should now have 16dp cut corners.
+The `cornerFamily` attribute set in the `shapeAppearanceOverlay` will override
+the `cornerFamily` set in the card's `shapeAppearance`, so the card should now
+have 16dp cut corners instead of 16dp rounded corners.
 
 #### Supported Components
 
-The following is a list of Material components that support shape theming.
+The following are some Material components that support shape theming.
 Components that support shape theming have a `shapeAppearance` attribute, a
 `shapeAppearanceOverlay` attribute, and are backed by a `MaterialShapeDrawable`.
 
 *   [Bottom Sheet](../components/BottomSheetBehavior.md)
-*   [Card](../components/MaterialCardView.md)
+*   [Card](../components/Card.md)
 *   [Chip](../components/Chip.md)
 *   [Date Picker](../components/Picker.md)
 *   [Dialog](../components/Dialog.md)
-*   [Extended Floating Action Button](../components/ExtendedFloatingActionButton.md)
+*   [Extended Floating Action Button](../components/FloatingActionButton.md?#extended-fabs)
 *   [Floating Action Button](../components/FloatingActionButton.md)
-*   [Material Button](../components/MaterialButton.md)
-*   [Material Button Toggle Group](../components/MaterialButtonToggleGroup.md)
-*   [Navigation View](../components/NavigationView.md)
+*   [Button](../components/Button.md)
+*   [Toggle Button](../components/Button.md?#toggle-button)
+*   [Navigation Drawer](../components/NavigationDrawer.md)
 *   [Slider](../components/Slider.md)
-*   [Text Field](../components/TextInputLayout.md)
+*   [Text Field](../components/TextField.md)

@@ -20,7 +20,9 @@ import android.graphics.Canvas;
 import android.graphics.Matrix;
 import android.graphics.Path;
 import android.graphics.RectF;
+import android.os.Build.VERSION_CODES;
 import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
 import com.google.android.material.shadow.ShadowRenderer;
 import java.util.ArrayList;
 import java.util.List;
@@ -87,6 +89,7 @@ public class ShapePath {
 
   private final List<PathOperation> operations = new ArrayList<>();
   private final List<ShadowCompatOperation> shadowCompatOperations = new ArrayList<>();
+  private boolean containsIncompatibleShadowOp;
 
   public ShapePath() {
     reset(0, 0);
@@ -114,6 +117,7 @@ public class ShapePath {
     setEndShadowAngle((shadowStartAngle + shadowSweepAngle) % 360);
     this.operations.clear();
     this.shadowCompatOperations.clear();
+    this.containsIncompatibleShadowOp = false;
   }
 
   /**
@@ -143,11 +147,15 @@ public class ShapePath {
   /**
    * Add a quad to the ShapePath.
    *
+   * <p>Note: This operation will not draw compatibility shadows. This means no shadow will be drawn
+   * on API < 21 and a shadow will only be drawn on API < 29 if the final path is convex.
+   *
    * @param controlX the control point x of the arc.
    * @param controlY the control point y of the arc.
    * @param toX the end x of the arc.
    * @param toY the end y of the arc.
    */
+  @RequiresApi(VERSION_CODES.LOLLIPOP)
   public void quadToPoint(float controlX, float controlY, float toX, float toY) {
     PathQuadOperation operation = new PathQuadOperation();
     operation.setControlX(controlX);
@@ -155,6 +163,34 @@ public class ShapePath {
     operation.setEndX(toX);
     operation.setEndY(toY);
     operations.add(operation);
+
+    containsIncompatibleShadowOp = true;
+
+    setEndX(toX);
+    setEndY(toY);
+  }
+
+  /**
+   * Add a cubic to the ShapePath.
+   *
+   * <p>Note: This operation will not draw compatibility shadows. This means no shadow will be drawn
+   * on API < 21 and a shadow will only be drawn on API < 29 if the final path is convex.
+   *
+   * @param controlX1 the 1st control point x of the arc.
+   * @param controlY1 the 1st control point y of the arc.
+   * @param controlX2 the 2nd control point x of the arc.
+   * @param controlY2 the 2nd control point y of the arc.
+   * @param toX the end x of the arc.
+   * @param toY the end y of the arc.
+   */
+  @RequiresApi(VERSION_CODES.LOLLIPOP)
+  public void cubicToPoint(
+      float controlX1, float controlY1, float controlX2, float controlY2, float toX, float toY) {
+    PathCubicOperation operation =
+        new PathCubicOperation(controlX1, controlY1, controlX2, controlY2, toX, toY);
+    operations.add(operation);
+
+    containsIncompatibleShadowOp = true;
 
     setEndX(toX);
     setEndY(toY);
@@ -217,13 +253,14 @@ public class ShapePath {
   ShadowCompatOperation createShadowCompatOperation(final Matrix transform) {
     // If the shadowCompatOperations don't end on the desired endShadowAngle, add an arc to do so.
     addConnectingShadowIfNecessary(getEndShadowAngle());
+    final Matrix transformCopy = new Matrix(transform);
     final List<ShadowCompatOperation> operations = new ArrayList<>(shadowCompatOperations);
     return new ShadowCompatOperation() {
       @Override
       public void draw(
           Matrix matrix, ShadowRenderer shadowRenderer, int shadowElevation, Canvas canvas) {
         for (ShadowCompatOperation op : operations) {
-          op.draw(transform, shadowRenderer, shadowElevation, canvas);
+          op.draw(transformCopy, shadowRenderer, shadowElevation, canvas);
         }
       }
     };
@@ -238,6 +275,14 @@ public class ShapePath {
     addConnectingShadowIfNecessary(startShadowAngle);
     shadowCompatOperations.add(shadowOperation);
     setCurrentShadowAngle(endShadowAngle);
+  }
+
+  /**
+   * Hint to let {@link MaterialShapeDrawable} know that it won't be rendering the shadow correctly
+   * if it's drawing the compat shadow.
+   */
+  boolean containsIncompatibleShadowOp() {
+    return containsIncompatibleShadowOp;
   }
 
   /**
@@ -575,6 +620,94 @@ public class ShapePath {
 
     private void setSweepAngle(float sweepAngle) {
       this.sweepAngle = sweepAngle;
+    }
+  }
+
+  /** Path cubic operation. */
+  public static class PathCubicOperation extends PathOperation {
+
+    private float controlX1;
+
+    private float controlY1;
+
+    private float controlX2;
+
+    private float controlY2;
+
+    private float endX;
+
+    private float endY;
+
+    public PathCubicOperation(
+        float controlX1,
+        float controlY1,
+        float controlX2,
+        float controlY2,
+        float endX,
+        float endY) {
+      setControlX1(controlX1);
+      setControlY1(controlY1);
+      setControlX2(controlX2);
+      setControlY2(controlY2);
+      setEndX(endX);
+      setEndY(endY);
+    }
+
+    @Override
+    public void applyToPath(@NonNull Matrix transform, @NonNull Path path) {
+      Matrix inverse = matrix;
+      transform.invert(inverse);
+      path.transform(inverse);
+      path.cubicTo(controlX1, controlY1, controlX2, controlY2, endX, endY);
+      path.transform(transform);
+    }
+
+    private float getControlX1() {
+      return controlX1;
+    }
+
+    private void setControlX1(float controlX1) {
+      this.controlX1 = controlX1;
+    }
+
+    private float getControlY1() {
+      return controlY1;
+    }
+
+    private void setControlY1(float controlY1) {
+      this.controlY1 = controlY1;
+    }
+
+    private float getControlX2() {
+      return controlX2;
+    }
+
+    private void setControlX2(float controlX2) {
+      this.controlX2 = controlX2;
+    }
+
+    private float getControlY2() {
+      return controlY1;
+    }
+
+    private void setControlY2(float controlY2) {
+      this.controlY2 = controlY2;
+    }
+
+    private float getEndX() {
+      return endX;
+    }
+
+    private void setEndX(float endX) {
+      this.endX = endX;
+    }
+
+    private float getEndY() {
+      return endY;
+    }
+
+    private void setEndY(float endY) {
+      this.endY = endY;
     }
   }
 }

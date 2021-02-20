@@ -22,19 +22,13 @@ import android.graphics.Canvas;
 import android.os.Build.VERSION;
 import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.annotation.Px;
-import androidx.annotation.RestrictTo;
-import androidx.annotation.RestrictTo.Scope;
-import androidx.annotation.VisibleForTesting;
 import androidx.core.util.Pair;
 import androidx.core.view.AccessibilityDelegateCompat;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.LinearSnapHelper;
+import androidx.recyclerview.widget.PagerSnapHelper;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.RecyclerView.ItemDecoration;
 import androidx.recyclerview.widget.RecyclerView.OnScrollListener;
@@ -46,6 +40,13 @@ import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityEvent;
 import android.widget.GridView;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.Px;
+import androidx.annotation.RestrictTo;
+import androidx.annotation.RestrictTo.Scope;
+import androidx.annotation.StyleRes;
+import androidx.annotation.VisibleForTesting;
 import com.google.android.material.button.MaterialButton;
 import java.util.Calendar;
 
@@ -78,7 +79,7 @@ public final class MaterialCalendar<S> extends PickerFragment<S> {
 
   @VisibleForTesting static final Object SELECTOR_TOGGLE_TAG = "SELECTOR_TOGGLE_TAG";
 
-  private int themeResId;
+  @StyleRes private int themeResId;
   @Nullable private DateSelector<S> dateSelector;
   @Nullable private CalendarConstraints calendarConstraints;
   @Nullable private Month current;
@@ -90,9 +91,9 @@ public final class MaterialCalendar<S> extends PickerFragment<S> {
   private View dayFrame;
 
   @NonNull
-  static <T> MaterialCalendar<T> newInstance(
-      DateSelector<T> dateSelector,
-      int themeResId,
+  public static <T> MaterialCalendar<T> newInstance(
+      @NonNull DateSelector<T> dateSelector,
+      @StyleRes int themeResId,
       @NonNull CalendarConstraints calendarConstraints) {
     MaterialCalendar<T> materialCalendar = new MaterialCalendar<>();
     Bundle args = new Bundle();
@@ -220,7 +221,7 @@ public final class MaterialCalendar<S> extends PickerFragment<S> {
     }
 
     if (!MaterialDatePicker.isFullscreen(themedContext)) {
-      new LinearSnapHelper().attachToRecyclerView(recyclerView);
+      new PagerSnapHelper().attachToRecyclerView(recyclerView);
     }
     recyclerView.scrollToPosition(monthsPagerAdapter.getPosition(current));
     return root;
@@ -290,7 +291,7 @@ public final class MaterialCalendar<S> extends PickerFragment<S> {
   }
 
   /**
-   * Changes the currently displayed {@link Month} to {@code moveTo}.
+   * Changes the currently displayed month to {@code moveTo}.
    *
    * @throws IllegalArgumentException If {@code moveTo} is not within the allowed {@link
    *     CalendarConstraints}.
@@ -387,7 +388,7 @@ public final class MaterialCalendar<S> extends PickerFragment<S> {
     yearFrame = root.findViewById(R.id.mtrl_calendar_year_selector_frame);
     dayFrame = root.findViewById(R.id.mtrl_calendar_day_selector_frame);
     setSelector(CalendarSelector.DAY);
-    monthDropSelect.setText(current.getLongName());
+    monthDropSelect.setText(current.getLongName(root.getContext()));
     recyclerView.addOnScrollListener(
         new OnScrollListener() {
           @Override
@@ -458,5 +459,10 @@ public final class MaterialCalendar<S> extends PickerFragment<S> {
   @NonNull
   LinearLayoutManager getLayoutManager() {
     return (LinearLayoutManager) recyclerView.getLayoutManager();
+  }
+
+  @Override
+  public boolean addOnSelectionChangedListener(@NonNull OnSelectionChangedListener<S> listener) {
+    return super.addOnSelectionChangedListener(listener);
   }
 }

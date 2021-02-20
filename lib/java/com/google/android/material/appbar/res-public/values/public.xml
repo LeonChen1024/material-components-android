@@ -16,6 +16,7 @@
 -->
 <resources>
   <public name="appBarLayoutStyle" type="attr"/>
+  <public name="collapsingToolbarLayoutStyle" type="attr"/>
   <public name="layout_scrollInterpolator" type="attr"/>
   <public name="behavior_overlapTop" type="attr"/>
   <public name="expandedTitleMargin" type="attr"/>
@@ -50,5 +51,17 @@
   <public name="expanded" type="attr"/>
   <public name="liftOnScroll" type="attr"/>
   <public name="liftOnScrollTargetViewId" type="attr"/>
+  <public name="collapsedTitleGravity" type="attr"/>
+  <public name="expandedTitleGravity" type="attr"/>
+  <public name="layout_collapseMode" type="attr"/>
+  <public name="layout_collapseParallaxMultiplier" type="attr"/>
+  <public name="layout_scrollFlags" type="attr"/>
+  <public name="state_liftable" type="attr"/>
+  <public name="state_lifted" type="attr"/>
+  <public name="scrimAnimationDuration" type="attr"/>
+  <public name="scrimVisibleHeightTrigger" type="attr"/>
+  <public name="titleEnabled" type="attr"/>
+  <public name="maxLines" type="attr"/>
+  <public name="navigationIconTint" type="attr"/>
 </resources>
 

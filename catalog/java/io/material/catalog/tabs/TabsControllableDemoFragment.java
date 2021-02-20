@@ -20,11 +20,6 @@ import io.material.catalog.R;
 
 import android.content.res.TypedArray;
 import android.os.Bundle;
-import androidx.annotation.ArrayRes;
-import androidx.annotation.DrawableRes;
-import androidx.annotation.LayoutRes;
-import androidx.annotation.Nullable;
-import androidx.annotation.StringRes;
 import androidx.core.view.ViewCompat;
 import androidx.appcompat.widget.SwitchCompat;
 import android.view.LayoutInflater;
@@ -35,6 +30,11 @@ import android.widget.AdapterView.OnItemSelectedListener;
 import android.widget.ArrayAdapter;
 import android.widget.RadioButton;
 import android.widget.Spinner;
+import androidx.annotation.ArrayRes;
+import androidx.annotation.DrawableRes;
+import androidx.annotation.LayoutRes;
+import androidx.annotation.Nullable;
+import androidx.annotation.StringRes;
 import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import androidx.viewpager.widget.ViewPager;
 import com.google.android.material.badge.BadgeDrawable;
@@ -120,6 +120,16 @@ public class TabsControllableDemoFragment extends DemoFragment {
     tabGravityCenterButton.setOnClickListener(
         v -> setAllTabLayoutGravity(TabLayout.GRAVITY_CENTER));
 
+    RadioButton tabAnimationModeLinearButton =
+        view.findViewById(R.id.tabs_animation_mode_linear_button);
+    tabAnimationModeLinearButton.setOnClickListener(
+        v -> setAllTabAnimationModes(TabLayout.INDICATOR_ANIMATION_MODE_LINEAR));
+
+    RadioButton tabsAnimationModeElasticButton =
+        view.findViewById(R.id.tabs_animation_mode_elastic_button);
+    tabsAnimationModeElasticButton.setOnClickListener(
+        v -> setAllTabAnimationModes(TabLayout.INDICATOR_ANIMATION_MODE_ELASTIC));
+
     SwitchCompat inlineToggle = view.findViewById(R.id.toggle_inline_switch);
     inlineToggle.setOnCheckedChangeListener(
         (buttonView, isChecked) -> setAllTabLayoutInline(isChecked));
@@ -170,7 +180,7 @@ public class TabsControllableDemoFragment extends DemoFragment {
   }
 
   private void setupViewPager() {
-    pager.setAdapter(new TabsPagerAdapter(getFragmentManager(), getContext(), TAB_COUNT));
+    pager.setAdapter(new TabsPagerAdapter(getChildFragmentManager(), getContext(), TAB_COUNT));
     for (TabLayout tabLayout : tabLayouts) {
       tabLayout.setupWithViewPager(pager);
     }
@@ -249,6 +259,12 @@ public class TabsControllableDemoFragment extends DemoFragment {
   private void setAllTabLayoutGravity(int gravity) {
     for (TabLayout tabLayout : tabLayouts) {
       tabLayout.setTabGravity(gravity);
+    }
+  }
+
+  private void setAllTabAnimationModes(int mode) {
+    for (TabLayout tabLayout : tabLayouts) {
+      tabLayout.setTabIndicatorAnimationMode(mode);
     }
   }
 

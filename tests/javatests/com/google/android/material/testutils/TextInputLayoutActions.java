@@ -23,12 +23,12 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
-import androidx.annotation.ColorInt;
-import androidx.annotation.DimenRes;
 import android.text.method.TransformationMethod;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.View.OnLongClickListener;
+import androidx.annotation.ColorInt;
+import androidx.annotation.DimenRes;
 import androidx.test.espresso.UiController;
 import androidx.test.espresso.ViewAction;
 import androidx.test.espresso.matcher.ViewMatchers;
@@ -303,6 +303,26 @@ public class TextInputLayoutActions {
     };
   }
 
+  public static ViewAction setErrorIconOnClickListener(final OnClickListener onClickListener) {
+    return new ViewAction() {
+      @Override
+      public Matcher<View> getConstraints() {
+        return isAssignableFrom(TextInputLayout.class);
+      }
+
+      @Override
+      public String getDescription() {
+        return "Set error icon OnClickListener";
+      }
+
+      @Override
+      public void perform(UiController uiController, View view) {
+        TextInputLayout layout = (TextInputLayout) view;
+        layout.setErrorIconOnClickListener(onClickListener);
+      }
+    };
+  }
+
   public static ViewAction setEndIconMode(final int endIconMode) {
     return new ViewAction() {
       @Override
@@ -501,6 +521,58 @@ public class TextInputLayoutActions {
       public void perform(UiController uiController, View view) {
         TextInputLayout layout = (TextInputLayout) view;
         layout.setBoxStrokeErrorColor(strokeErrorColor);
+      }
+    };
+  }
+
+  /**
+   * Sets the text field's stroke width.
+   *
+   * @param strokeWidth the value to use for the text field box's stroke
+   * @return the action of setting the box stroke width on a {@link TextInputLayout}
+   */
+  public static ViewAction setBoxStrokeWidth(final int strokeWidth) {
+    return new ViewAction() {
+      @Override
+      public Matcher<View> getConstraints() {
+        return isAssignableFrom(TextInputLayout.class);
+      }
+
+      @Override
+      public String getDescription() {
+        return "Sets the box's stroke width.";
+      }
+
+      @Override
+      public void perform(UiController uiController, View view) {
+        TextInputLayout layout = (TextInputLayout) view;
+        layout.setBoxStrokeWidth(strokeWidth);
+      }
+    };
+  }
+
+  /**
+   * Sets the text field's focused stroke width.
+   *
+   * @param strokeWidthFocused the value to use for the text field box's stroke when focused
+   * @return the action of setting the box's focused stroke width on a {@link TextInputLayout}
+   */
+  public static ViewAction setBoxStrokeWidthFocused(final int strokeWidthFocused) {
+    return new ViewAction() {
+      @Override
+      public Matcher<View> getConstraints() {
+        return isAssignableFrom(TextInputLayout.class);
+      }
+
+      @Override
+      public String getDescription() {
+        return "Sets the box's stroke width when focused.";
+      }
+
+      @Override
+      public void perform(UiController uiController, View view) {
+        TextInputLayout layout = (TextInputLayout) view;
+        layout.setBoxStrokeWidthFocused(strokeWidthFocused);
       }
     };
   }
@@ -752,6 +824,28 @@ public class TextInputLayoutActions {
       public void perform(UiController uiController, View view) {
         TextInputLayout layout = (TextInputLayout) view;
         layout.setSuffixText(suffixText);
+      }
+    };
+  }
+
+  /** Sets whether the hint expands. */
+  public static ViewAction setExpandedHintEnabled(final boolean expandedHintEnabled) {
+    return new ViewAction() {
+
+      @Override
+      public Matcher<View> getConstraints() {
+        return ViewMatchers.isAssignableFrom(TextInputLayout.class);
+      }
+
+      @Override
+      public String getDescription() {
+        return "Sets whether the hint expands.";
+      }
+
+      @Override
+      public void perform(UiController uiController, View view) {
+        TextInputLayout layout = (TextInputLayout) view;
+        layout.setExpandedHintEnabled(expandedHintEnabled);
       }
     };
   }

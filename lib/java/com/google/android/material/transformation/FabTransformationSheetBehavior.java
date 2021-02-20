@@ -19,15 +19,15 @@ import com.google.android.material.R;
 
 import android.content.Context;
 import android.os.Build;
-import androidx.annotation.AnimatorRes;
-import androidx.annotation.CallSuper;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.core.view.ViewCompat;
 import android.util.AttributeSet;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewParent;
+import androidx.annotation.AnimatorRes;
+import androidx.annotation.CallSuper;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import com.google.android.material.animation.MotionSpec;
 import com.google.android.material.animation.Positioning;
@@ -41,7 +41,11 @@ import java.util.Map;
  *
  * <p>A sheet usually has some width and height that's smaller than the screen, has an elevation,
  * and may have a scrim underneath.
+ *
+ * @deprecated Use {@link com.google.android.material.transition.MaterialContainerTransform}
+ *     instead.
  */
+@Deprecated
 public class FabTransformationSheetBehavior extends FabTransformationBehavior {
 
   @Nullable private Map<View, Integer> importantForAccessibilityMap;

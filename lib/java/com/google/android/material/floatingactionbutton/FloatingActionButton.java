@@ -18,8 +18,8 @@ package com.google.android.material.floatingactionbutton;
 
 import com.google.android.material.R;
 
-import static androidx.annotation.RestrictTo.Scope.LIBRARY_GROUP;
 import static androidx.core.util.Preconditions.checkNotNull;
+import static androidx.annotation.RestrictTo.Scope.LIBRARY_GROUP;
 import static com.google.android.material.theme.overlay.MaterialThemeOverlay.wrap;
 
 import android.animation.Animator.AnimatorListener;
@@ -36,18 +36,6 @@ import android.os.Build;
 import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
 import android.os.Parcelable;
-import androidx.annotation.AnimatorRes;
-import androidx.annotation.ColorInt;
-import androidx.annotation.DimenRes;
-import androidx.annotation.DrawableRes;
-import androidx.annotation.IdRes;
-import androidx.annotation.IntDef;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.annotation.Px;
-import androidx.annotation.RequiresApi;
-import androidx.annotation.RestrictTo;
-import androidx.annotation.VisibleForTesting;
 import androidx.core.graphics.drawable.DrawableCompat;
 import androidx.core.view.TintableBackgroundView;
 import androidx.core.view.ViewCompat;
@@ -61,6 +49,18 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
+import androidx.annotation.AnimatorRes;
+import androidx.annotation.ColorInt;
+import androidx.annotation.DimenRes;
+import androidx.annotation.DrawableRes;
+import androidx.annotation.IdRes;
+import androidx.annotation.IntDef;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.Px;
+import androidx.annotation.RequiresApi;
+import androidx.annotation.RestrictTo;
+import androidx.annotation.VisibleForTesting;
 import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import com.google.android.material.animation.MotionSpec;
 import com.google.android.material.animation.TransformationCallback;
@@ -94,7 +94,7 @@ import java.util.List;
  * <p>As this class descends from {@link ImageView}, you can control the icon which is displayed via
  * {@link #setImageDrawable(Drawable)}.
  *
- * <p>The background color of this view defaults to the your theme's {@code colorAccent}. If you
+ * <p>The background color of this view defaults to the your theme's {@code colorSecondary}. If you
  * wish to change this at runtime then you can do so via {@link
  * #setBackgroundTintList(ColorStateList)}.
  */
@@ -102,7 +102,8 @@ public class FloatingActionButton extends VisibilityAwareImageButton
     implements TintableBackgroundView,
         TintableImageSourceView,
         ExpandableTransformationWidget,
-        Shapeable, CoordinatorLayout.AttachedBehavior {
+        Shapeable,
+        CoordinatorLayout.AttachedBehavior {
 
   private static final String LOG_TAG = "FloatingActionButton";
   private static final String EXPANDABLE_WIDGET_HELPER_KEY = "expandableWidgetHelper";
@@ -200,7 +201,7 @@ public class FloatingActionButton extends VisibilityAwareImageButton
     this(context, attrs, R.attr.floatingActionButtonStyle);
   }
 
-  @SuppressWarnings("initialization")
+  @SuppressWarnings("nullness")
   public FloatingActionButton(
       @NonNull Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
     super(wrap(context, attrs, defStyleAttr, DEF_STYLE_RES), attrs, defStyleAttr);
@@ -243,8 +244,10 @@ public class FloatingActionButton extends VisibilityAwareImageButton
                 context, attrs, defStyleAttr, DEF_STYLE_RES, ShapeAppearanceModel.PILL)
             .build();
 
-    boolean ensureMinTouchTargetSize = a
-        .getBoolean(R.styleable.FloatingActionButton_ensureMinTouchTargetSize, false);
+    boolean ensureMinTouchTargetSize =
+        a.getBoolean(R.styleable.FloatingActionButton_ensureMinTouchTargetSize, false);
+
+    setEnabled(a.getBoolean(R.styleable.FloatingActionButton_android_enabled, true));
 
     a.recycle();
 
@@ -559,7 +562,6 @@ public class FloatingActionButton extends VisibilityAwareImageButton
     }
   }
 
-
   @Override
   public void setVisibility(int visibility) {
     super.setVisibility(visibility);
@@ -745,7 +747,7 @@ public class FloatingActionButton extends VisibilityAwareImageButton
    * calculated based on the value set using {@link #setSize(int)} or the {@code fabSize} attribute.
    *
    * @param size preferred size in pixels, or {@link #NO_CUSTOM_SIZE}
-   * @attr ref com.google.android.material.R.styleable.FloatingActionButton_fabCustomSize
+   * @attr ref com.google.android.material.R.styleable#FloatingActionButton_fabCustomSize
    */
   public void setCustomSize(@Px int size) {
     if (size < 0) {
@@ -1234,7 +1236,8 @@ public class FloatingActionButton extends VisibilityAwareImageButton
    * Returns the backward compatible hovered/focused translationZ of the FloatingActionButton.
    *
    * @return the backward compatible hovered/focused translationZ in pixels.
-   * @attr ref com.google.android.material.R.styleable#FloatingActionButton_hoveredFocusedTranslationZ
+   * @attr ref
+   *     com.google.android.material.R.styleable#FloatingActionButton_hoveredFocusedTranslationZ
    * @see #setCompatHoveredFocusedTranslationZ(float)
    */
   public float getCompatHoveredFocusedTranslationZ() {
@@ -1245,7 +1248,8 @@ public class FloatingActionButton extends VisibilityAwareImageButton
    * Updates the backward compatible hovered/focused translationZ of the FloatingActionButton.
    *
    * @param translationZ The backward compatible hovered/focused translationZ in pixels.
-   * @attr ref com.google.android.material.R.styleable#FloatingActionButton_hoveredFocusedTranslationZ
+   * @attr ref
+   *     com.google.android.material.R.styleable#FloatingActionButton_hoveredFocusedTranslationZ
    * @see #getCompatHoveredFocusedTranslationZ()
    * @see #setUseCompatPadding(boolean)
    */
@@ -1257,7 +1261,8 @@ public class FloatingActionButton extends VisibilityAwareImageButton
    * Updates the backward compatible hovered/focused translationZ of the FloatingActionButton.
    *
    * @param id The resource id of the backward compatible hovered/focused translationZ.
-   * @attr ref com.google.android.material.R.styleable#FloatingActionButton_hoveredFocusedTranslationZ
+   * @attr ref
+   *     com.google.android.material.R.styleable#FloatingActionButton_hoveredFocusedTranslationZ
    * @see #getCompatHoveredFocusedTranslationZ()
    * @see #setUseCompatPadding(boolean)
    */

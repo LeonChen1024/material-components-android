@@ -27,6 +27,7 @@ import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Locale;
 import java.util.TimeZone;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Utility class for common operations on timezones, calendars, dateformats, and longs representing
@@ -35,6 +36,17 @@ import java.util.TimeZone;
 class UtcDates {
 
   static final String UTC = "UTC";
+
+  static AtomicReference<TimeSource> timeSourceRef = new AtomicReference<>();
+
+  static void setTimeSource(@Nullable TimeSource timeSource) {
+    timeSourceRef.set(timeSource);
+  }
+
+  static TimeSource getTimeSource() {
+    TimeSource timeSource = timeSourceRef.get();
+    return timeSource == null ? TimeSource.system() : timeSource;
+  }
 
   private UtcDates() {}
 
@@ -47,8 +59,17 @@ class UtcDates {
     return android.icu.util.TimeZone.getTimeZone(UTC);
   }
 
+  /**
+   * Returns a Calendar object in UTC time zone representing the first moment of current date.
+   */
   static Calendar getTodayCalendar() {
-    return getDayCopy(Calendar.getInstance());
+    Calendar today = getTimeSource().now();
+    today.set(Calendar.HOUR_OF_DAY, 0);
+    today.set(Calendar.MINUTE, 0);
+    today.set(Calendar.SECOND, 0);
+    today.set(Calendar.MILLISECOND, 0);
+    today.setTimeZone(getTimeZone());
+    return today;
   }
 
   /**
@@ -200,14 +221,6 @@ class UtcDates {
 
   static DateFormat getFullFormat(Locale locale) {
     return getFormat(DateFormat.FULL, locale);
-  }
-
-  static SimpleDateFormat getYearMonthFormat() {
-    return getYearMonthFormat(Locale.getDefault());
-  }
-
-  private static SimpleDateFormat getYearMonthFormat(Locale locale) {
-    return getSimpleFormat("MMMM, yyyy", locale);
   }
 
   @NonNull

@@ -17,11 +17,11 @@ package com.google.android.material.datepicker;
 
 import com.google.android.material.R;
 
+import static java.lang.Math.min;
+
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Rect;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.core.util.Pair;
 import androidx.core.view.AccessibilityDelegateCompat;
 import androidx.core.view.ViewCompat;
@@ -29,13 +29,18 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import android.util.AttributeSet;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.GridView;
 import android.widget.ListAdapter;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import com.google.android.material.internal.ViewUtils;
 import java.util.Calendar;
 
 final class MaterialCalendarGridView extends GridView {
 
   private final Calendar dayCompute = UtcDates.getUtcCalendar();
+  private final boolean nestedScrollable;
 
   public MaterialCalendarGridView(Context context) {
     this(context, null);
@@ -51,6 +56,7 @@ final class MaterialCalendarGridView extends GridView {
       setNextFocusLeftId(R.id.cancel_button);
       setNextFocusRightId(R.id.confirm_button);
     }
+    nestedScrollable = MaterialDatePicker.isNestedScrollable(getContext());
     ViewCompat.setAccessibilityDelegate(
         this,
         new AccessibilityDelegateCompat() {
@@ -131,9 +137,9 @@ final class MaterialCalendarGridView extends GridView {
       long endItem = range.second;
 
       if (skipMonth(firstOfMonth, lastOfMonth, startItem, endItem)) {
-        return;
+        continue;
       }
-
+      boolean isRtl = ViewUtils.isLayoutRtl(this);
       int firstHighlightPosition;
       int rangeHighlightStart;
       if (startItem < firstOfMonth) {
@@ -141,7 +147,9 @@ final class MaterialCalendarGridView extends GridView {
         rangeHighlightStart =
             monthAdapter.isFirstInRow(firstHighlightPosition)
                 ? 0
-                : getChildAt(firstHighlightPosition - 1).getRight();
+                : !isRtl
+                    ? getChildAt(firstHighlightPosition - 1).getRight()
+                    : getChildAt(firstHighlightPosition - 1).getLeft();
       } else {
         dayCompute.setTimeInMillis(startItem);
         firstHighlightPosition = monthAdapter.dayToPosition(dayCompute.get(Calendar.DAY_OF_MONTH));
@@ -151,11 +159,13 @@ final class MaterialCalendarGridView extends GridView {
       int lastHighlightPosition;
       int rangeHighlightEnd;
       if (endItem > lastOfMonth) {
-        lastHighlightPosition = monthAdapter.lastPositionInMonth();
+        lastHighlightPosition = min(monthAdapter.lastPositionInMonth(), getChildCount() - 1);
         rangeHighlightEnd =
             monthAdapter.isLastInRow(lastHighlightPosition)
                 ? getWidth()
-                : getChildAt(lastHighlightPosition).getRight();
+                : !isRtl
+                    ? getChildAt(lastHighlightPosition).getRight()
+                    : getChildAt(lastHighlightPosition).getLeft();
       } else {
         dayCompute.setTimeInMillis(endItem);
         lastHighlightPosition = monthAdapter.dayToPosition(dayCompute.get(Calendar.DAY_OF_MONTH));
@@ -170,10 +180,31 @@ final class MaterialCalendarGridView extends GridView {
         View firstView = getChildAt(firstPositionInRow);
         int top = firstView.getTop() + calendarStyle.day.getTopInset();
         int bottom = firstView.getBottom() - calendarStyle.day.getBottomInset();
-        int left = firstPositionInRow > firstHighlightPosition ? 0 : rangeHighlightStart;
-        int right = lastHighlightPosition > lastPositionInRow ? getWidth() : rangeHighlightEnd;
+        int left;
+        int right;
+        if (!isRtl) {
+          left = firstPositionInRow > firstHighlightPosition ? 0 : rangeHighlightStart;
+          right = lastHighlightPosition > lastPositionInRow ? getWidth() : rangeHighlightEnd;
+        } else {
+          left = lastHighlightPosition > lastPositionInRow ? 0 : rangeHighlightEnd;
+          right = firstPositionInRow > firstHighlightPosition ? getWidth() : rangeHighlightStart;
+        }
         canvas.drawRect(left, top, right, bottom, calendarStyle.rangeFill);
       }
+    }
+  }
+
+  @Override
+  public void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+    if (nestedScrollable) {
+      // Calculate entire height by providing a very large height hint.
+      // View.MEASURED_SIZE_MASK represents the largest height possible.
+      int expandSpec = MeasureSpec.makeMeasureSpec(MEASURED_SIZE_MASK, MeasureSpec.AT_MOST);
+      super.onMeasure(widthMeasureSpec, expandSpec);
+      ViewGroup.LayoutParams params = getLayoutParams();
+      params.height = getMeasuredHeight();
+    } else {
+      super.onMeasure(widthMeasureSpec, heightMeasureSpec);
     }
   }
 

@@ -23,16 +23,10 @@ import static com.google.android.material.theme.overlay.MaterialThemeOverlay.wra
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.content.res.TypedArray;
+import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import android.os.Build.VERSION;
 import android.os.Build.VERSION_CODES;
-import androidx.annotation.ColorInt;
-import androidx.annotation.ColorRes;
-import androidx.annotation.Dimension;
-import androidx.annotation.DrawableRes;
-import androidx.annotation.FloatRange;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.appcompat.content.res.AppCompatResources;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -40,6 +34,14 @@ import android.view.View;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Checkable;
+import androidx.annotation.ColorInt;
+import androidx.annotation.ColorRes;
+import androidx.annotation.DimenRes;
+import androidx.annotation.Dimension;
+import androidx.annotation.DrawableRes;
+import androidx.annotation.FloatRange;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.cardview.widget.CardView;
 import com.google.android.material.internal.ThemeEnforcement;
 import com.google.android.material.shape.MaterialShapeDrawable;
@@ -286,10 +288,34 @@ public class MaterialCardView extends CardView implements Checkable, Shapeable {
     return cardViewHelper.getCardBackgroundColor();
   }
 
+  /**
+   * Sets the foreground color for this card.
+   *
+   * @param foregroundColor Color to use for the foreground.
+   * @attr ref com.google.android.material.R.styleable#MaterialCardView_cardForegroundColor
+   * @see #getCardForegroundColor()
+   */
+  public void setCardForegroundColor(@Nullable ColorStateList foregroundColor) {
+    cardViewHelper.setCardForegroundColor(foregroundColor);
+  }
+
+  /**
+   * Sets the ripple color for this card.
+   *
+   * @attr ref com.google.android.material.R.styleable#MaterialCardView_cardForegroundColor
+   * @see #setCardForegroundColor(ColorStateList)
+   */
+  @NonNull
+  public ColorStateList getCardForegroundColor() {
+    return cardViewHelper.getCardForegroundColor();
+  }
+
   @Override
   public void setClickable(boolean clickable) {
     super.setClickable(clickable);
-    cardViewHelper.updateClickable();
+    if (cardViewHelper != null){
+      cardViewHelper.updateClickable();
+    }
   }
 
   @Override
@@ -526,8 +552,67 @@ public class MaterialCardView extends CardView implements Checkable, Shapeable {
     cardViewHelper.setCheckedIconTint(checkedIconTint);
   }
 
+  @Dimension
+  public int getCheckedIconSize() {
+    return cardViewHelper.getCheckedIconSize();
+  }
+
+  /**
+   * Sets the size of the checked icon
+   *
+   * @param checkedIconSize checked icon size
+   * @attr ref com.google.android.material.R.styleable#MaterialCardView_checkedIconSize
+   */
+  public void setCheckedIconSize(@Dimension int checkedIconSize) {
+    cardViewHelper.setCheckedIconSize(checkedIconSize);
+  }
+
+  /**
+   * Sets the size of the checked icon using a resource id.
+   *
+   * @param checkedIconSizeResId The resource id of this Card's checked icon size
+   * @attr ref com.google.android.material.R.styleable#MaterialCardView_checkedIconSize
+   */
+  public void setCheckedIconSizeResource(@DimenRes int checkedIconSizeResId) {
+    if (checkedIconSizeResId != 0) {
+      cardViewHelper.setCheckedIconSize(getResources().getDimensionPixelSize(checkedIconSizeResId));
+    }
+  }
+
+  @Dimension
+  public int getCheckedIconMargin() {
+    return cardViewHelper.getCheckedIconMargin();
+  }
+
+  public void setCheckedIconMargin(@Dimension int checkedIconMargin) {
+    cardViewHelper.setCheckedIconMargin(checkedIconMargin);
+  }
+
+  /**
+   * Sets the margin of the checked icon using a resource id.
+   *
+   * @param checkedIconMarginResId The resource id of this Card's checked icon margin
+   * @attr ref com.google.android.material.R.styleable#MaterialCardView_checkedIconMargin
+   */
+  public void setCheckedIconMarginResource(@DimenRes int checkedIconMarginResId) {
+    if (checkedIconMarginResId != NO_ID) {
+      cardViewHelper.setCheckedIconMargin(
+          getResources().getDimensionPixelSize(checkedIconMarginResId));
+    }
+  }
+
+  @NonNull
+  private RectF getBoundsAsRectF() {
+    RectF boundsRectF = new RectF();
+    boundsRectF.set(cardViewHelper.getBackground().getBounds());
+    return boundsRectF;
+  }
+
   @Override
   public void setShapeAppearanceModel(@NonNull ShapeAppearanceModel shapeAppearanceModel) {
+    if (VERSION.SDK_INT >= VERSION_CODES.LOLLIPOP) {
+      setClipToOutline(shapeAppearanceModel.isRoundRect(getBoundsAsRectF()));
+    }
     cardViewHelper.setShapeAppearanceModel(shapeAppearanceModel);
   }
 

@@ -24,13 +24,13 @@ import android.content.res.TypedArray;
 import android.graphics.drawable.Drawable;
 import android.os.Build.VERSION;
 import android.os.Build.VERSION_CODES;
+import androidx.appcompat.content.res.AppCompatResources;
+import androidx.appcompat.widget.TintTypedArray;
+import android.util.TypedValue;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RestrictTo;
 import androidx.annotation.StyleableRes;
-import androidx.appcompat.content.res.AppCompatResources;
-import androidx.appcompat.widget.TintTypedArray;
-import android.util.TypedValue;
 
 /**
  * Utility methods to resolve resources for components.
@@ -39,6 +39,11 @@ import android.util.TypedValue;
  */
 @RestrictTo(LIBRARY_GROUP)
 public class MaterialResources {
+
+  /** Value of the system's x1.3 font scale size. */
+  private static final float FONT_SCALE_1_3 = 1.3f;
+  /** Value of the system's x2 font scale size. */
+  private static final float FONT_SCALE_2_0 = 2f;
 
   private MaterialResources() {}
 
@@ -169,6 +174,20 @@ public class MaterialResources {
     int dimension = styledAttrs.getDimensionPixelSize(0, defaultValue);
     styledAttrs.recycle();
     return dimension;
+  }
+
+  /**
+   * Returns whether the font scale size is at least {@link #FONT_SCALE_1_3}.
+   */
+  public static boolean isFontScaleAtLeast1_3(@NonNull Context context) {
+    return context.getResources().getConfiguration().fontScale >= FONT_SCALE_1_3;
+  }
+
+  /**
+   * Returns whether the font scale size is at least {@link #FONT_SCALE_2_0}.
+   */
+  public static boolean isFontScaleAtLeast2_0(@NonNull Context context) {
+    return context.getResources().getConfiguration().fontScale >= FONT_SCALE_2_0;
   }
 
   /**

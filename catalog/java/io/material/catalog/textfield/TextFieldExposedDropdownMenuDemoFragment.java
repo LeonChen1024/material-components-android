@@ -19,13 +19,14 @@ package io.material.catalog.textfield;
 import io.material.catalog.R;
 
 import android.os.Bundle;
-import androidx.annotation.LayoutRes;
-import androidx.annotation.Nullable;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
+import android.widget.Button;
+import androidx.annotation.LayoutRes;
+import androidx.annotation.Nullable;
 import com.google.android.material.textfield.TextInputLayout;
 
 /**
@@ -33,15 +34,6 @@ import com.google.android.material.textfield.TextInputLayout;
  * the Catalog app.
  */
 public class TextFieldExposedDropdownMenuDemoFragment extends TextFieldControllableDemoFragment {
-
-  @Override
-  public void onChangeTextFieldColors(TextInputLayout textfield, int color) {
-    if (textfield.getBoxBackgroundMode() == TextInputLayout.BOX_BACKGROUND_FILLED) {
-      textfield.setBoxBackgroundColor(color);
-    } else {
-      textfield.setBoxStrokeColor(color);
-    }
-  }
 
   @Override
   @LayoutRes
@@ -81,6 +73,25 @@ public class TextFieldExposedDropdownMenuDemoFragment extends TextFieldControlla
         view.findViewById(R.id.outlined_exposed_dropdown_editable);
     editTextOutlinedEditableExposedDropdown.setAdapter(adapter);
 
+    // Initialize button for toggling the leading icon's visibility.
+    Button toggleLeadingIconButton = view.findViewById(R.id.button_toggle_leading_icon);
+    toggleLeadingIconButton.setVisibility(View.VISIBLE);
+    toggleLeadingIconButton.setOnClickListener(
+        v -> {
+          if (!textfields.isEmpty() && textfields.get(0).getStartIconDrawable() == null) {
+            for (TextInputLayout textfield : textfields) {
+              textfield.setStartIconDrawable(R.drawable.ic_search_24px);
+            }
+            toggleLeadingIconButton.setText(
+                getResources().getString(R.string.cat_textfield_hide_leading_icon));
+          } else {
+            for (TextInputLayout textfield : textfields) {
+              textfield.setStartIconDrawable(null);
+            }
+            toggleLeadingIconButton.setText(
+                getResources().getString(R.string.cat_textfield_show_leading_icon));
+          }
+        });
     return view;
   }
 }

@@ -28,10 +28,10 @@ import android.graphics.RadialGradient;
 import android.graphics.RectF;
 import android.graphics.Region.Op;
 import android.graphics.Shader;
+import androidx.core.graphics.ColorUtils;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RestrictTo;
-import androidx.core.graphics.ColorUtils;
 
 /**
  * A helper class to draw linear or radial shadows using gradient shaders.
@@ -72,14 +72,12 @@ public class ShadowRenderer {
   }
 
   public ShadowRenderer(int color) {
+    shadowPaint = new Paint();
     setShadowColor(color);
 
     transparentPaint.setColor(Color.TRANSPARENT);
     cornerShadowPaint = new Paint(Paint.DITHER_FLAG);
     cornerShadowPaint.setStyle(Paint.Style.FILL);
-
-    shadowPaint = new Paint();
-    shadowPaint.setColor(shadowStartColor);
 
     edgeShadowPaint = new Paint(cornerShadowPaint);
   }
@@ -88,6 +86,7 @@ public class ShadowRenderer {
     shadowStartColor = ColorUtils.setAlphaComponent(color, COLOR_ALPHA_START);
     shadowMiddleColor = ColorUtils.setAlphaComponent(color, COLOR_ALPHA_MIDDLE);
     shadowEndColor = ColorUtils.setAlphaComponent(color, COLOR_ALPHA_END);
+    shadowPaint.setColor(shadowStartColor);
   }
 
   /** Draws an edge shadow on the canvas in the current bounds with the matrix transform applied. */
@@ -150,16 +149,21 @@ public class ShadowRenderer {
       cornerColors[3] = shadowEndColor;
     }
 
-    float startRatio = 1f - (elevation / (bounds.width() / 2f));
+    float radius = bounds.width() / 2f;
+    // The shadow is not big enough to draw.
+    if (radius <= 0) {
+      return;
+    }
+
+    float startRatio = 1f - (elevation / radius);
     float midRatio = startRatio + ((1f - startRatio) / 2f);
     cornerPositions[1] = startRatio;
     cornerPositions[2] = midRatio;
-
     cornerShadowPaint.setShader(
         new RadialGradient(
             bounds.centerX(),
             bounds.centerY(),
-            bounds.width() / 2,
+            radius,
             cornerColors,
             cornerPositions,
             Shader.TileMode.CLAMP));

@@ -25,10 +25,8 @@ import android.content.res.Resources;
 import android.content.res.TypedArray;
 import android.graphics.PorterDuff;
 import android.os.Build;
-import androidx.annotation.Dimension;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.annotation.RestrictTo;
+import android.os.Build.VERSION;
+import android.os.Build.VERSION_CODES;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import android.util.AttributeSet;
@@ -37,8 +35,14 @@ import android.view.View;
 import android.view.View.OnAttachStateChangeListener;
 import android.view.ViewGroup;
 import android.view.ViewParent;
+import android.view.ViewTreeObserver;
+import android.view.ViewTreeObserver.OnGlobalLayoutListener;
 import android.view.WindowInsets;
 import android.view.inputmethod.InputMethodManager;
+import androidx.annotation.Dimension;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.RestrictTo;
 
 /**
  * Utils class for custom views.
@@ -271,7 +275,10 @@ public class ViewUtils {
    * version from androidx when it's available.
    */
   @Nullable
-  public static ViewOverlayImpl getOverlay(@NonNull View view) {
+  public static ViewOverlayImpl getOverlay(@Nullable View view) {
+    if (view == null) {
+      return null;
+    }
     if (Build.VERSION.SDK_INT >= 18) {
       return new ViewOverlayApi18(view);
     }
@@ -281,15 +288,24 @@ public class ViewUtils {
   /** Returns the content view that is the parent of the provided view. */
   @Nullable
   public static ViewGroup getContentView(@Nullable View view) {
-    View parent = view;
-    while (parent != null) {
-      if (parent.getId() == android.R.id.content && parent instanceof ViewGroup) {
-        return (ViewGroup) parent;
-      }
-      if (parent.getParent() instanceof ViewGroup) {
-        parent = (ViewGroup) parent.getParent();
-      }
+    if (view == null) {
+      return null;
     }
+
+    View rootView = view.getRootView();
+    ViewGroup contentView = rootView.findViewById(android.R.id.content);
+    if (contentView != null) {
+      return contentView;
+    }
+
+    // Account for edge cases: Parent's parent can be null without ever having found
+    // android.R.id.content (e.g. if view is in an overlay during a transition).
+    // Additionally, sometimes parent's parent is neither a ViewGroup nor a View (e.g. if view
+    // is in a PopupWindow).
+    if (rootView != view && rootView instanceof ViewGroup) {
+      return (ViewGroup) rootView;
+    }
+
     return null;
   }
 
@@ -299,5 +315,28 @@ public class ViewUtils {
   @Nullable
   public static ViewOverlayImpl getContentViewOverlay(@NonNull View view) {
     return getOverlay(getContentView(view));
+  }
+
+  public static void addOnGlobalLayoutListener(
+      @Nullable View view, @NonNull OnGlobalLayoutListener victim) {
+    if (view != null) {
+      view.getViewTreeObserver().addOnGlobalLayoutListener(victim);
+    }
+  }
+
+  public static void removeOnGlobalLayoutListener(
+      @Nullable View view, @NonNull OnGlobalLayoutListener victim) {
+    if (view != null) {
+      removeOnGlobalLayoutListener(view.getViewTreeObserver(), victim);
+    }
+  }
+
+  public static void removeOnGlobalLayoutListener(
+      @NonNull ViewTreeObserver viewTreeObserver, @NonNull OnGlobalLayoutListener victim) {
+    if (VERSION.SDK_INT >= VERSION_CODES.JELLY_BEAN) {
+      viewTreeObserver.removeOnGlobalLayoutListener(victim);
+    } else {
+      viewTreeObserver.removeGlobalOnLayoutListener(victim);
+    }
   }
 }

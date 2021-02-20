@@ -7,6 +7,13 @@ path: /docs/getting-started/
 
 # Getting started with Material Components for Android
 
+Take a look at our
+[guide](https://medium.com/androiddevelopers/migrating-to-material-components-for-android-ec6757795351)
+that helps you migrate your codebase from the Design Support Library to Material
+Components for Android.
+
+## Instructions
+
 ### 1. Depend on our library
 
 Material Components for Android is available through Google's Maven Repository.
@@ -35,11 +42,13 @@ To use it:
       }
     ```
 
-Visit [Google's Maven Repository](http://maven.google.com) or
+Visit
+[Google's Maven Repository](https://maven.google.com/web/index.html#com.google.android.material:material)
+or
 [MVN Repository](https://mvnrepository.com/artifact/com.google.android.material/material)
 to find the latest version of the library.
 
-##### New Namespace and AndroidX
+#### New Namespace and AndroidX
 
 If your app currently depends on the original Design Support Library, you can
 make use of the
@@ -55,13 +64,11 @@ the `com.android.support:design:28.0.0` dependency.
 Note: You should not use the `com.android.support` and
 `com.google.android.material` dependencies in your app at the same time.
 
-### 2. Compile your app with Android 9
+### 2. Compile your app with Android 10
 
 In order to use Material Components for Android, and the latest versions of the
-Support Libraries, you will have to update your app's `compileSdkVersion` to
-`28` and download the Android 9 using the SDK manager. For more
-information on Android 9 and its timeline, take a look at the [Program
-Overview](https://developer.android.com/preview/overview) page.
+Support Libraries, you will have to install Android Studio 3.5 or higher to
+build with Android 10, and update your app's `compileSdkVersion` to `29`.
 
 ### 3. Ensure you are using `AppCompatActivity`
 
@@ -73,9 +80,9 @@ be inflated among other important things.
 ### 4. Change your app theme to inherit from a Material Components theme
 
 Doing an app-wide migration by changing your app theme to inherit from a
-Material Components theme is the recommended approach. However, be sure to
-test thoroughly afterwards, as components in existing layouts may change
-their looks and behavior.
+Material Components theme is the recommended approach. However, be sure to test
+thoroughly afterwards, as components in existing layouts may change their looks
+and behavior.
 
 Note: If you **can't** change your theme, you can do one of the following:
 
@@ -83,7 +90,7 @@ Note: If you **can't** change your theme, you can do one of the following:
     [**Bridge Themes**](#bridge-themes) section for more details.
 *   Continue to inherit from an AppCompat theme and add some new theme
     attributes to your theme. See the
-    [**App Compat Themes**](#app-compat-themes) section for more details.
+    [**AppCompat Themes**](#appcompat-themes) section for more details.
 
 #### **Material Components themes**
 
@@ -114,10 +121,12 @@ a look at our [Theming](theming.md) guide, as well as our
 
 Note: Using a Material Components theme enables a custom view inflater which
 replaces default components with their Material counterparts. Currently, this
-only replaces `<Button>` XML components with
-[`<MaterialButton>`](components/MaterialButton.md).
+only replaces `<Button>` and `<AutoCompleteTextView>` XML components with
+[`<MaterialButton>`](components/Button.md) and
+[`<MaterialAutoCompleteTextView>`](https://github.com/material-components/material-components-android/tree/master/lib/java/com/google/android/material/textfield/MaterialAutoCompleteTextView.java),
+respectively.
 
-#### **Bridge Themes** {#bridge-themes}
+#### **Bridge Themes**
 
 If you cannot change your theme to inherit from a Material Components theme, you
 can inherit from a Material Components **Bridge** theme.
@@ -141,12 +150,11 @@ Bridge themes inherit from AppCompat themes, but also define the new Material
 Components theme attributes for you. If you use a bridge theme, you can start
 using Material Design components without changing your app theme.
 
-#### **AppCompat Themes** {#app-compat-themes}
+#### **AppCompat Themes**
 
-You can also incrementally test new Material components without changing
-your app theme. This allows you to keep your existing layouts looking and
-behaving the same, while introducing new components to your layout one at a
-time.
+You can also incrementally test new Material components without changing your
+app theme. This allows you to keep your existing layouts looking and behaving
+the same, while introducing new components to your layout one at a time.
 
 However, you must add the following new theme attributes to your existing app
 theme, or you will encounter `ThemeEnforcement` errors:
@@ -193,13 +201,13 @@ Take a look at our [documentation](https://www.material.io/components/android)
 for the full list of available Material components. Each component's page has
 specific instructions on how to implement it in your app.
 
-Let's use [text fields](components/TextInputLayout.md) as an example.
+Let's use [text fields](components/TextField.md) as an example.
 
 #### **Implementing a text field via XML**
 
-The default [filled
-text field](https://material.io/go/design-text-fields#filled-text-field) XML
-is defined as:
+The default
+[filled text field](https://material.io/go/design-text-fields#filled-text-field)
+XML is defined as:
 
 ```xml
 <com.google.android.material.textfield.TextInputLayout
@@ -218,8 +226,7 @@ theme, you will have to specify the text field style as well, via
 `style="@style/Widget.MaterialComponents.TextInputLayout.FilledBox"`
 
 Other text field styles are also provided. For example, if you want an
-[outlined
-text field](https://material.io/go/design-text-fields#outlined-text-field)
+[outlined text field](https://material.io/go/design-text-fields#outlined-text-field)
 in your layout, you can apply the Material Components `outlined` style to the
 text field in XML:
 
@@ -239,19 +246,18 @@ text field in XML:
 ## Contributors
 
 Material Components for Android welcomes contributions from the community. Check
-out our [contributing guidelines](contributing.md) as well as an overview of
-the [directory structure](directorystructure.md) before getting started.
+out our [contributing guidelines](contributing.md) as well as an overview of the
+[directory structure](directorystructure.md) before getting started.
 
 ## Useful Links
-- [Theming Guide](theming.md)
-- [Contributing](contributing.md)
-- [Building From Source](building-from-source.md)
-- [Catalog App](catalog-app.md)
-- [Class
-  documentation](https://developer.android.com/reference/com/google/android/material/classes)
-- [MDC-Android on Stack
-  Overflow](https://www.stackoverflow.com/questions/tagged/material-components+android)
-- [Android Developer’s
-  Guide](https://developer.android.com/training/material/index.html)
-- [Material.io](https://www.material.io)
-- [Material Design Guidelines](https://material.google.com)
+
+-   [Theming Guide](theming.md)
+-   [Contributing](contributing.md)
+-   [Using Snapshot Version](using-snapshot-version.md)
+-   [Building From Source](building-from-source.md)
+-   [Catalog App](catalog-app.md)
+-   [Class documentation](https://developer.android.com/reference/com/google/android/material/classes)
+-   [MDC-Android on Stack Overflow](https://www.stackoverflow.com/questions/tagged/material-components+android)
+-   [Android Developer’s Guide](https://developer.android.com/training/material/index.html)
+-   [Material.io](https://www.material.io)
+-   [Material Design Guidelines](https://material.google.com)

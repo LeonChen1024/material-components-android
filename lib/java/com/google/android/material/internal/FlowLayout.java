@@ -24,14 +24,14 @@ import android.annotation.TargetApi;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.os.Build;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.annotation.RestrictTo;
 import androidx.core.view.MarginLayoutParamsCompat;
 import androidx.core.view.ViewCompat;
 import android.util.AttributeSet;
 import android.view.View;
 import android.view.ViewGroup;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.RestrictTo;
 
 /**
  * Horizontally lay out children until the row is filled and then moved to the next line. Call
@@ -44,6 +44,7 @@ public class FlowLayout extends ViewGroup {
   private int lineSpacing;
   private int itemSpacing;
   private boolean singleLine;
+  private int rowCount;
 
   public FlowLayout(@NonNull Context context) {
     this(context, null);
@@ -188,8 +189,10 @@ public class FlowLayout extends ViewGroup {
   protected void onLayout(boolean sizeChanged, int left, int top, int right, int bottom) {
     if (getChildCount() == 0) {
       // Do not re-layout when there are no children.
+      rowCount = 0;
       return;
     }
+    rowCount = 1;
 
     boolean isRtl = ViewCompat.getLayoutDirection(this) == ViewCompat.LAYOUT_DIRECTION_RTL;
     int paddingStart = isRtl ? getPaddingRight() : getPaddingLeft();
@@ -205,6 +208,7 @@ public class FlowLayout extends ViewGroup {
       View child = getChildAt(i);
 
       if (child.getVisibility() == View.GONE) {
+        child.setTag(R.id.row_index_key, -1);
         continue;
       }
 
@@ -222,7 +226,9 @@ public class FlowLayout extends ViewGroup {
       if (!singleLine && (childEnd > maxChildEnd)) {
         childStart = paddingStart;
         childTop = childBottom + lineSpacing;
+        rowCount++;
       }
+      child.setTag(R.id.row_index_key, rowCount - 1);
 
       childEnd = childStart + startMargin + child.getMeasuredWidth();
       childBottom = childTop + child.getMeasuredHeight();
@@ -236,5 +242,18 @@ public class FlowLayout extends ViewGroup {
 
       childStart += (startMargin + endMargin + child.getMeasuredWidth()) + itemSpacing;
     }
+  }
+
+  protected int getRowCount() {
+    return rowCount;
+  }
+
+  /** Gets the row index of the child, primarily for accessibility.   */
+  public int getRowIndex(@NonNull View child) {
+    Object index = child.getTag(R.id.row_index_key);
+    if (!(index instanceof Integer)) {
+      return -1;
+    }
+    return (int) index;
   }
 }

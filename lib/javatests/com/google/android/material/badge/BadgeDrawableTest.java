@@ -22,12 +22,12 @@ import static com.google.common.truth.Truth.assertThat;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.os.Parcel;
-import androidx.annotation.StyleRes;
-import androidx.annotation.XmlRes;
 import androidx.core.content.res.ResourcesCompat;
 import android.util.AttributeSet;
 import android.util.TypedValue;
 import android.view.Gravity;
+import androidx.annotation.StyleRes;
+import androidx.annotation.XmlRes;
 import androidx.test.core.app.ApplicationProvider;
 import com.google.android.material.badge.BadgeDrawable.SavedState;
 import com.google.android.material.drawable.DrawableUtils;
@@ -72,6 +72,7 @@ public class BadgeDrawableTest {
 
     badgeDrawable.setBackgroundColor(testBackgroundColor);
     badgeDrawable.setBadgeTextColor(testBadgeTextColor);
+    badgeDrawable.setVisible(false);
 
     Parcel parcel = Parcel.obtain();
     drawableState.writeToParcel(parcel, drawableState.describeContents());
@@ -90,6 +91,9 @@ public class BadgeDrawableTest {
     // badge offsets
     assertThat(restoredBadgeDrawable.getHorizontalOffset()).isEqualTo(TEST_BADGE_HORIZONTAL_OFFSET);
     assertThat(restoredBadgeDrawable.getVerticalOffset()).isEqualTo(TEST_BADGE_VERTICAL_OFFSET);
+
+    // badge visibility
+    assertThat(restoredBadgeDrawable.isVisible()).isFalse();
   }
 
   // Verify that the hardcoded badge gravity attribute values match their piped Gravity counter

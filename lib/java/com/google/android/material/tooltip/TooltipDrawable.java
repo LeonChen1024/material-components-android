@@ -28,18 +28,20 @@ import android.graphics.Paint;
 import android.graphics.Paint.Align;
 import android.graphics.Paint.FontMetrics;
 import android.graphics.Rect;
+import androidx.core.graphics.ColorUtils;
+import android.text.TextUtils;
+import android.util.AttributeSet;
+import android.view.View;
+import android.view.View.OnLayoutChangeListener;
 import androidx.annotation.AttrRes;
+import androidx.annotation.FloatRange;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.Px;
 import androidx.annotation.RestrictTo;
 import androidx.annotation.StringRes;
 import androidx.annotation.StyleRes;
-import androidx.core.graphics.ColorUtils;
-import android.text.TextUtils;
-import android.util.AttributeSet;
-import android.view.View;
-import android.view.View.OnLayoutChangeListener;
+import com.google.android.material.animation.AnimationUtils;
 import com.google.android.material.color.MaterialColors;
 import com.google.android.material.internal.TextDrawableHelper;
 import com.google.android.material.internal.TextDrawableHelper.TextDrawableDelegate;
@@ -99,6 +101,12 @@ public class TooltipDrawable extends MaterialShapeDrawable implements TextDrawab
   private int layoutMargin;
   private int arrowSize;
   private int locationOnScreenX;
+
+  private float tooltipScaleX = 1F;
+  private float tooltipScaleY = 1F;
+  private final float tooltipPivotX = 0.5F;
+  private float tooltipPivotY = 0.5F;
+  private float labelOpacity = 1.0F;
 
   /** Returns a TooltipDrawable from the given attributes. */
   @NonNull
@@ -166,6 +174,11 @@ public class TooltipDrawable extends MaterialShapeDrawable implements TextDrawab
         ColorStateList.valueOf(
             a.getColor(R.styleable.Tooltip_backgroundTint, backgroundTintDefault)));
 
+    setStrokeColor(
+        ColorStateList.valueOf(
+            MaterialColors.getColor(
+                context, R.attr.colorSurface, TooltipDrawable.class.getCanonicalName())));
+
     padding = a.getDimensionPixelSize(R.styleable.Tooltip_android_padding, 0);
     minWidth = a.getDimensionPixelSize(R.styleable.Tooltip_android_minWidth, 0);
     minHeight = a.getDimensionPixelSize(R.styleable.Tooltip_android_minHeight, 0);
@@ -213,7 +226,7 @@ public class TooltipDrawable extends MaterialShapeDrawable implements TextDrawab
   /**
    * Returns the TextAppearance used by this tooltip.
    *
-   * @attr ref com.google.android.material.R.styleable#Tooltip_android_textappearance
+   * @attr ref com.google.android.material.R.styleable#Tooltip_android_textAppearance
    */
   @Nullable
   public TextAppearance getTextAppearance() {
@@ -224,7 +237,7 @@ public class TooltipDrawable extends MaterialShapeDrawable implements TextDrawab
    * Sets this tooltip's text appearance using a resource id.
    *
    * @param id The resource id of this tooltip's text appearance.
-   * @attr ref com.google.android.material.R.styleable#Tooltip_android_textappearance
+   * @attr ref com.google.android.material.R.styleable#Tooltip_android_textAppearance
    */
   public void setTextAppearanceResource(@StyleRes int id) {
     setTextAppearance(new TextAppearance(context, id));
@@ -234,7 +247,7 @@ public class TooltipDrawable extends MaterialShapeDrawable implements TextDrawab
    * Sets this tooltip's text appearance.
    *
    * @param textAppearance This tooltip's text appearance.
-   * @attr ref com.google.android.material.R.styleable#Tooltip_android_textappearance
+   * @attr ref com.google.android.material.R.styleable#Tooltip_android_textAppearance
    */
   public void setTextAppearance(@Nullable TextAppearance textAppearance) {
     textDrawableHelper.setTextAppearance(textAppearance, context);
@@ -329,12 +342,37 @@ public class TooltipDrawable extends MaterialShapeDrawable implements TextDrawab
   }
 
   /**
+   * A fraction that controls the scale of the tooltip and the opacity of its text.
+   *
+   * <p>When fraction is 0.0, the tooltip will be completely hidden, as fraction approaches 1.0, the
+   * tooltip will scale up from its pointer and animate in its text.
+   *
+   * <p>This method is typically called from within an animator's update callback. The animator in
+   * this case is what is driving the animation while this method handles configuring the tooltip's
+   * appearance at each frame in the animation.
+   *
+   * @param fraction A value between 0.0 and 1.0 that defines how "shown" the tooltip will be.
+   */
+  public void setRevealFraction(@FloatRange(from = 0.0, to = 1.0) float fraction) {
+    // Set the y pivot point below the bottom of the tooltip to make it look like the
+    // tooltip is translating slightly up while scaling in.
+    tooltipPivotY = 1.2F;
+    tooltipScaleX = fraction;
+    tooltipScaleY = fraction;
+    labelOpacity = AnimationUtils.lerp(0F, 1F, 0.19F, 1F, fraction);
+    invalidateSelf();
+  }
+
+  /**
    * Should be called to allow this drawable to calculate its position within the current display
    * frame. This allows it to apply to specified window padding.
    *
    * @see #detachView(View)
    */
-  public void setRelativeToView(@NonNull View view) {
+  public void setRelativeToView(@Nullable View view) {
+    if (view == null) {
+      return;
+    }
     updateLocationOnScreen(view);
     // Listen for changes that indicate the view has moved so the location can be updated
     view.addOnLayoutChangeListener(attachedViewLayoutChangeListener);
@@ -345,7 +383,10 @@ public class TooltipDrawable extends MaterialShapeDrawable implements TextDrawab
    *
    * @see #setRelativeToView(View)
    */
-  public void detachView(@NonNull View view) {
+  public void detachView(@Nullable View view) {
+    if (view == null) {
+      return;
+    }
     view.removeOnLayoutChangeListener(attachedViewLayoutChangeListener);
   }
 
@@ -370,6 +411,14 @@ public class TooltipDrawable extends MaterialShapeDrawable implements TextDrawab
     // Handle the extra space created by the arrow notch at the bottom of the tooltip by moving the
     // canvas. This allows the pointing part of the tooltip to align with the bottom of the bounds.
     float translateY = (float) -(arrowSize * Math.sqrt(2) - arrowSize);
+
+    // Scale the tooltip. Use the bounds to set the pivot points relative to this drawable since
+    // the supplied canvas is not necessarily the same size.
+    canvas.scale(
+        tooltipScaleX,
+        tooltipScaleY,
+        getBounds().left + (getBounds().width() * tooltipPivotX),
+        getBounds().top + (getBounds().height() * tooltipPivotY));
 
     canvas.translate(translateX, translateY);
 
@@ -441,6 +490,7 @@ public class TooltipDrawable extends MaterialShapeDrawable implements TextDrawab
     if (textDrawableHelper.getTextAppearance() != null) {
       textDrawableHelper.getTextPaint().drawableState = getState();
       textDrawableHelper.updateTextPaintDrawState(context);
+      textDrawableHelper.getTextPaint().setAlpha((int) (labelOpacity * 255));
     }
 
     canvas.drawText(text, 0, text.length(), bounds.centerX(), y, textDrawableHelper.getTextPaint());

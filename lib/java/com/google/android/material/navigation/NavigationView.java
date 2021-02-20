@@ -19,6 +19,7 @@ package com.google.android.material.navigation;
 import com.google.android.material.R;
 
 import static androidx.annotation.RestrictTo.Scope.LIBRARY_GROUP;
+import static com.google.android.material.theme.overlay.MaterialThemeOverlay.wrap;
 
 import android.app.Activity;
 import android.content.Context;
@@ -33,17 +34,6 @@ import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
 import android.os.Parcel;
 import android.os.Parcelable;
-import androidx.annotation.DimenRes;
-import androidx.annotation.Dimension;
-import androidx.annotation.DrawableRes;
-import androidx.annotation.IdRes;
-import androidx.annotation.LayoutRes;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.annotation.RestrictTo;
-import androidx.annotation.StyleRes;
-import androidx.core.content.ContextCompat;
-import androidx.customview.view.AbsSavedState;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.appcompat.content.res.AppCompatResources;
@@ -58,6 +48,18 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewTreeObserver.OnGlobalLayoutListener;
+import androidx.annotation.DimenRes;
+import androidx.annotation.Dimension;
+import androidx.annotation.DrawableRes;
+import androidx.annotation.IdRes;
+import androidx.annotation.LayoutRes;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.RestrictTo;
+import androidx.annotation.StyleRes;
+import androidx.core.content.ContextCompat;
+import androidx.customview.view.AbsSavedState;
+import com.google.android.material.internal.ContextUtils;
 import com.google.android.material.internal.NavigationMenu;
 import com.google.android.material.internal.NavigationMenuPresenter;
 import com.google.android.material.internal.ScrimInsetsFrameLayout;
@@ -98,6 +100,7 @@ public class NavigationView extends ScrimInsetsFrameLayout {
   private static final int[] CHECKED_STATE_SET = {android.R.attr.state_checked};
   private static final int[] DISABLED_STATE_SET = {-android.R.attr.state_enabled};
 
+  private static final int DEF_STYLE_RES = R.style.Widget_Design_NavigationView;
   private static final int PRESENTER_NAVIGATION_VIEW_ID = 1;
 
   @NonNull private final NavigationMenu menu;
@@ -120,7 +123,9 @@ public class NavigationView extends ScrimInsetsFrameLayout {
   }
 
   public NavigationView(@NonNull Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
-    super(context, attrs, defStyleAttr);
+    super(wrap(context, attrs, defStyleAttr, DEF_STYLE_RES), attrs, defStyleAttr);
+    // Ensure we are using the correctly themed context rather than the context that was passed in.
+    context = getContext();
 
     // Create the menu
     this.menu = new NavigationMenu(context);
@@ -132,7 +137,7 @@ public class NavigationView extends ScrimInsetsFrameLayout {
             attrs,
             R.styleable.NavigationView,
             defStyleAttr,
-            R.style.Widget_Design_NavigationView);
+            DEF_STYLE_RES);
 
     if (a.hasValue(R.styleable.NavigationView_android_background)) {
       ViewCompat.setBackground(this, a.getDrawable(R.styleable.NavigationView_android_background));
@@ -141,8 +146,10 @@ public class NavigationView extends ScrimInsetsFrameLayout {
     // Set the background to a MaterialShapeDrawable if it hasn't been set or if it can be converted
     // to a MaterialShapeDrawable.
     if (getBackground() == null || getBackground() instanceof ColorDrawable) {
+      ShapeAppearanceModel shapeAppearanceModel =
+          ShapeAppearanceModel.builder(context, attrs, defStyleAttr, DEF_STYLE_RES).build();
       Drawable orig = getBackground();
-      MaterialShapeDrawable materialShapeDrawable = new MaterialShapeDrawable();
+      MaterialShapeDrawable materialShapeDrawable = new MaterialShapeDrawable(shapeAppearanceModel);
       if (orig instanceof ColorDrawable) {
         materialShapeDrawable.setFillColor(
             ColorStateList.valueOf(((ColorDrawable) orig).getColor()));
@@ -676,13 +683,12 @@ public class NavigationView extends ScrimInsetsFrameLayout {
         presenter.setBehindStatusBar(isBehindStatusBar);
         setDrawTopInsetForeground(isBehindStatusBar);
 
-        Context context = getContext();
-        if (context instanceof Activity && VERSION.SDK_INT >= VERSION_CODES.LOLLIPOP) {
+        Activity activity = ContextUtils.getActivity(getContext());
+        if (activity != null && VERSION.SDK_INT >= VERSION_CODES.LOLLIPOP) {
           boolean isBehindSystemNav =
-              ((Activity) context).findViewById(android.R.id.content).getHeight()
-                  == getHeight();
+              activity.findViewById(android.R.id.content).getHeight() == getHeight();
           boolean hasNonZeroAlpha =
-              Color.alpha(((Activity) context).getWindow().getNavigationBarColor()) != 0;
+              Color.alpha(activity.getWindow().getNavigationBarColor()) != 0;
 
           setDrawBottomInsetForeground(isBehindSystemNav && hasNonZeroAlpha);
         }

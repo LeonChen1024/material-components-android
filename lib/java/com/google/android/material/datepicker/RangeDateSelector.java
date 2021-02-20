@@ -22,10 +22,6 @@ import android.content.res.Resources;
 import android.os.Bundle;
 import android.os.Parcel;
 import android.os.Parcelable;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.annotation.RestrictTo;
-import androidx.annotation.RestrictTo.Scope;
 import androidx.core.util.Pair;
 import androidx.core.util.Preconditions;
 import android.text.InputType;
@@ -34,6 +30,10 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.RestrictTo;
+import androidx.annotation.RestrictTo.Scope;
 import com.google.android.material.internal.ManufacturerUtils;
 import com.google.android.material.internal.ViewUtils;
 import com.google.android.material.resources.MaterialAttributes;
@@ -52,7 +52,7 @@ import java.util.Collection;
 public class RangeDateSelector implements DateSelector<Pair<Long, Long>> {
 
   private String invalidRangeStartError;
-  // TODO(b/137381488): "" is not considered an error
+  // "" is not considered an error
   private final String invalidRangeEndError = " ";
   @Nullable private Long selectedStartItem = null;
   @Nullable private Long selectedEndItem = null;
@@ -180,8 +180,7 @@ public class RangeDateSelector implements DateSelector<Pair<Long, Long>> {
     final TextInputLayout endTextInput = root.findViewById(R.id.mtrl_picker_text_input_range_end);
     EditText startEditText = startTextInput.getEditText();
     EditText endEditText = endTextInput.getEditText();
-    // The date inputType for Samsung does not include any separator characters
-    if (ManufacturerUtils.isSamsungDevice()) {
+    if (ManufacturerUtils.isDateInputKeyboardMissingSeparatorCharacters()) {
       // Using the URI variation places the '/' and '.' in more prominent positions
       startEditText.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
       endEditText.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
@@ -201,6 +200,8 @@ public class RangeDateSelector implements DateSelector<Pair<Long, Long>> {
     }
 
     String formatHint = UtcDates.getTextInputHint(root.getResources(), format);
+    startTextInput.setPlaceholderText(formatHint);
+    endTextInput.setPlaceholderText(formatHint);
 
     startEditText.addTextChangedListener(
         new DateFormatTextWatcher(formatHint, format, startTextInput, constraints) {
@@ -246,6 +247,7 @@ public class RangeDateSelector implements DateSelector<Pair<Long, Long>> {
       @NonNull OnSelectionChangedListener<Pair<Long, Long>> listener) {
     if (proposedTextStart == null || proposedTextEnd == null) {
       clearInvalidRange(startTextInput, endTextInput);
+      listener.onIncompleteSelectionChanged();
       return;
     }
     if (isValidRange(proposedTextStart, proposedTextEnd)) {
@@ -254,6 +256,7 @@ public class RangeDateSelector implements DateSelector<Pair<Long, Long>> {
       listener.onSelectionChanged(getSelection());
     } else {
       setInvalidRange(startTextInput, endTextInput);
+      listener.onIncompleteSelectionChanged();
     }
   }
 

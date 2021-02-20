@@ -33,12 +33,15 @@ import static com.google.android.material.testutils.TextInputLayoutActions.setBo
 import static com.google.android.material.testutils.TextInputLayoutActions.setBoxCornerRadii;
 import static com.google.android.material.testutils.TextInputLayoutActions.setBoxStrokeColor;
 import static com.google.android.material.testutils.TextInputLayoutActions.setBoxStrokeErrorColor;
+import static com.google.android.material.testutils.TextInputLayoutActions.setBoxStrokeWidth;
+import static com.google.android.material.testutils.TextInputLayoutActions.setBoxStrokeWidthFocused;
 import static com.google.android.material.testutils.TextInputLayoutActions.setCounterEnabled;
 import static com.google.android.material.testutils.TextInputLayoutActions.setCounterMaxLength;
 import static com.google.android.material.testutils.TextInputLayoutActions.setError;
 import static com.google.android.material.testutils.TextInputLayoutActions.setErrorContentDescription;
 import static com.google.android.material.testutils.TextInputLayoutActions.setErrorEnabled;
 import static com.google.android.material.testutils.TextInputLayoutActions.setErrorTextAppearance;
+import static com.google.android.material.testutils.TextInputLayoutActions.setExpandedHintEnabled;
 import static com.google.android.material.testutils.TextInputLayoutActions.setHelperText;
 import static com.google.android.material.testutils.TextInputLayoutActions.setHelperTextEnabled;
 import static com.google.android.material.testutils.TextInputLayoutActions.setHint;
@@ -60,7 +63,6 @@ import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Parcelable;
-import androidx.annotation.ColorInt;
 import androidx.core.widget.TextViewCompat;
 import android.text.TextPaint;
 import android.util.AttributeSet;
@@ -68,6 +70,7 @@ import android.util.SparseArray;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.TextView;
+import androidx.annotation.ColorInt;
 import androidx.test.annotation.UiThreadTest;
 import androidx.test.espresso.ViewAssertion;
 import androidx.test.filters.MediumTest;
@@ -172,6 +175,15 @@ public class TextInputLayoutTest {
     onView(withId(R.id.textinput_edittext_filled)).perform(typeText(INPUT_TEXT));
     // Check that the cutout is closed.
     onView(withId(R.id.textinput_box_outline)).check(isCutoutOpen(false));
+  }
+
+  @Test
+  public void testHintIsCollapsedIfExpandedHintNotEnabled() {
+    // Set expandedHintEnabled to false.
+    onView(withId(R.id.textinput_box_filled)).perform(setExpandedHintEnabled(false));
+
+    // Check the hint is collapsed.
+    onView(withId(R.id.textinput_box_filled)).check(isHintExpanded(false));
   }
 
   @Test
@@ -344,21 +356,22 @@ public class TextInputLayoutTest {
   public void testDispatchProvideAutofillStructure() {
     final Activity activity = activityTestRule.getActivity();
 
-    final TextInputLayout layout = activity.findViewById(R.id.textinput);
+    final TextInputLayout layout = activity.findViewById(R.id.textinput_layout_without_hint);
 
     final ViewStructureImpl structure = new ViewStructureImpl();
     layout.dispatchProvideAutofillStructure(structure, 0);
 
-    assertEquals(2, structure.getChildCount()); // EditText and TextView
+    // 1 x EditText, 3 x TextView (prefix/suffix/placeholder).
+    assertEquals(4, structure.getChildCount());
 
     // Asserts the structure.
-    final ViewStructureImpl childStructure = structure.getChildAt(0);
+    ViewStructureImpl childStructure = structure.getChildAt(1);
     assertEquals(EditText.class.getName(), childStructure.getClassName());
-    assertEquals("Hint to the user", childStructure.getHint().toString());
+    assertEquals("Nested hint", childStructure.getHint().toString());
 
     // Make sure the widget's hint was restored.
-    assertEquals("Hint to the user", layout.getHint().toString());
-    final EditText editText = activity.findViewById(R.id.textinput_edittext);
+    assertEquals("Nested hint", layout.getHint().toString());
+    final EditText editText = activity.findViewById(R.id.textinput_edittext_with_hint);
     assertNull(editText.getHint());
   }
 
@@ -405,6 +418,36 @@ public class TextInputLayoutTest {
         "Expected no additional animations since we simply saved/restored state",
         1,
         layout.animateToExpansionFractionCount);
+  }
+
+  @UiThreadTest
+  @Test
+  public void testSavedState() throws Throwable {
+    final Activity activity = activityTestRule.getActivity();
+    final TextInputLayout layout = (TextInputLayout) activity.findViewById(R.id.textinput);
+    layout.setHint(HINT_TEXT);
+    layout.setHelperText(HELPER_MESSAGE_1);
+    layout.setPlaceholderText(PLACEHOLDER_TEXT);
+
+    // Save the current state
+    SparseArray<Parcelable> container = new SparseArray<>();
+    layout.saveHierarchyState(container);
+
+    // Restore the state into a fresh text field
+    activityTestRule.runOnUiThread(
+        () -> {
+          final TextInputLayout testLayout = new TestTextInputLayout(activity);
+          testLayout.setId(R.id.textinput);
+          final TextInputEditText testEditText = new TextInputEditText(activity);
+          testEditText.setId(R.id.textinputedittext);
+          testLayout.addView(testEditText);
+          testLayout.restoreHierarchyState(container);
+
+          // Check hint, helper and placeholder text were restored
+          assertEquals(HINT_TEXT, testLayout.getHint().toString());
+          assertEquals(HELPER_MESSAGE_1, testLayout.getHelperText().toString());
+          assertEquals(PLACEHOLDER_TEXT, testLayout.getPlaceholderText().toString());
+        });
   }
 
   @UiThreadTest
@@ -560,6 +603,30 @@ public class TextInputLayoutTest {
   }
 
   @Test
+  public void testSetBoxStrokeWidth() {
+    final Activity activity = activityTestRule.getActivity();
+    final TextInputLayout layout = activity.findViewById(R.id.textinput_box_outline);
+
+    // Set stroke width
+    onView(withId(R.id.textinput_box_outline)).perform(setBoxStrokeWidth(10));
+
+    // Assert stroke width is correct
+    assertEquals(10, layout.getBoxStrokeWidth());
+  }
+
+  @Test
+  public void testSetBoxStrokeFocusedWidth() {
+    final Activity activity = activityTestRule.getActivity();
+    final TextInputLayout layout = activity.findViewById(R.id.textinput_box_outline);
+
+    // Set stroke width
+    onView(withId(R.id.textinput_box_outline)).perform(setBoxStrokeWidthFocused(10));
+
+    // Assert stroke width is correct
+    assertEquals(10, layout.getBoxStrokeWidthFocused());
+  }
+
+  @Test
   public void testOutlineBoxStrokeChangesColor() {
     @ColorInt int cyan = Color.CYAN;
     @ColorInt int green = Color.GREEN;
@@ -672,6 +739,38 @@ public class TextInputLayoutTest {
                 R.dimen.corner_radius_medium));
     // Check that the outline box's top end corner radius is cornerRadiusMedium.
     onView(withId(R.id.textinput_box_outline)).check(isBoxCornerRadiusTopEnd(cornerRadiusMedium));
+  }
+
+  @UiThreadTest
+  @Test
+  @SdkSuppress(minSdkVersion = Build.VERSION_CODES.O)
+  public void hintSetOnNestedEditText_propagateInnerHintToAutofillProvider() {
+    final Activity activity = activityTestRule.getActivity();
+    TextInputLayout textInputLayout = activity.findViewById(R.id.textinput_layout_without_hint);
+    ViewStructureImpl structure = new ViewStructureImpl();
+
+    textInputLayout.dispatchProvideAutofillStructure(structure, /* flags= */ 0);
+
+    final ViewStructureImpl editText = structure.getChildAt(1);
+    assertEquals(EditText.class.getName(), editText.getClassName());
+    assertEquals(structure.getAutofillId(), textInputLayout.getAutofillId());
+    assertEquals("Nested hint", editText.getHint().toString());
+  }
+
+  @UiThreadTest
+  @Test
+  @SdkSuppress(minSdkVersion = Build.VERSION_CODES.O)
+  public void hintSetOnOuterLayout_propagateOuterHintToAutofillProvider() {
+    final Activity activity = activityTestRule.getActivity();
+    TextInputLayout textInputLayout = activity.findViewById(R.id.textinput_layout_with_hint);
+    ViewStructureImpl structure = new ViewStructureImpl();
+
+    textInputLayout.dispatchProvideAutofillStructure(structure, /* flags= */ 0);
+
+    final ViewStructureImpl editText = structure.getChildAt(1);
+    assertEquals(EditText.class.getName(), editText.getClassName());
+    assertEquals(structure.getAutofillId(), textInputLayout.getAutofillId());
+    assertEquals("Outer hint", editText.getHint().toString());
   }
 
   private static ViewAssertion isHintExpanded(final boolean expanded) {

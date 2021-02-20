@@ -19,6 +19,9 @@
   <!-- Style to use for AppBarLayouts in this theme. -->
   <attr name="appBarLayoutStyle" format="reference"/>
 
+  <!-- Style to use for CollapsingToolbarLayouts in this theme. -->
+  <attr name="collapsingToolbarLayoutStyle" format="reference"/>
+
   <declare-styleable name="AppBarLayout">
     <!-- Deprecated. Elevation is now controlled via a state list animator. -->
     <attr name="elevation"/>
@@ -194,6 +197,8 @@
     <attr name="titleEnabled" format="boolean"/>
     <!-- The title to show when titleEnabled is set to true. -->
     <attr name="title"/>
+    <!-- The maximum number of lines to display in the expanded state. Experimental Feature. -->
+    <attr name="maxLines" format="integer" />
   </declare-styleable>
 
   <declare-styleable name="CollapsingToolbarLayout_Layout">
@@ -210,6 +215,10 @@
     <!-- The multiplier used when layout_collapseMode is set to 'parallax'. The value should
          be between 0.0 and 1.0. -->
     <attr name="layout_collapseParallaxMultiplier" format="float"/>
+  </declare-styleable>
+
+  <declare-styleable name="MaterialToolbar">
+    <attr name="navigationIconTint" format="color" />
   </declare-styleable>
 
 </resources>

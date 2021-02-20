@@ -29,11 +29,6 @@ import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.os.Build.VERSION;
-import androidx.annotation.ColorInt;
-import androidx.annotation.IntDef;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.annotation.StyleRes;
 import androidx.core.view.ViewCompat;
 import androidx.core.widget.TextViewCompat;
 import androidx.appcompat.widget.AppCompatTextView;
@@ -41,11 +36,19 @@ import android.text.TextUtils;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewGroup.LayoutParams;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import androidx.annotation.ColorInt;
+import androidx.annotation.DimenRes;
+import androidx.annotation.IntDef;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.StyleRes;
 import com.google.android.material.animation.AnimationUtils;
 import com.google.android.material.animation.AnimatorSetCompat;
+import com.google.android.material.resources.MaterialResources;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
@@ -95,7 +98,6 @@ final class IndicatorViewController {
   private int indicatorsAdded;
 
   private FrameLayout captionArea;
-  private int captionViewsAdded;
   @Nullable private Animator captionAnimator;
   private final float captionTranslationYPx;
   private int captionDisplayed;
@@ -344,6 +346,7 @@ final class IndicatorViewController {
         return errorView;
       case CAPTION_STATE_HELPER_TEXT:
         return helperTextView;
+      case CAPTION_STATE_NONE:
       default: // No caption displayed, fall out and return null.
     }
     return null;
@@ -351,18 +354,37 @@ final class IndicatorViewController {
 
   void adjustIndicatorPadding() {
     if (canAdjustIndicatorPadding()) {
-      // Add padding to the indicators so that they match the EditText
+      EditText editText = textInputView.getEditText();
+      boolean isFontScaleLarge = MaterialResources.isFontScaleAtLeast1_3(context);
       ViewCompat.setPaddingRelative(
           indicatorArea,
-          ViewCompat.getPaddingStart(textInputView.getEditText()),
-          0,
-          ViewCompat.getPaddingEnd(textInputView.getEditText()),
+          getIndicatorPadding(
+              isFontScaleLarge,
+              R.dimen.material_helper_text_font_1_3_padding_horizontal,
+              ViewCompat.getPaddingStart(editText)),
+          getIndicatorPadding(
+              isFontScaleLarge,
+              R.dimen.material_helper_text_font_1_3_padding_top,
+              context
+                  .getResources()
+                  .getDimensionPixelSize(R.dimen.material_helper_text_default_padding_top)),
+          getIndicatorPadding(
+              isFontScaleLarge,
+              R.dimen.material_helper_text_font_1_3_padding_horizontal,
+              ViewCompat.getPaddingEnd(editText)),
           0);
     }
   }
 
   private boolean canAdjustIndicatorPadding() {
     return indicatorArea != null && textInputView.getEditText() != null;
+  }
+
+  private int getIndicatorPadding(
+      boolean isFontScaleLarge, @DimenRes int largeFontPaddingRes, int defaultPadding) {
+    return isFontScaleLarge
+        ? context.getResources().getDimensionPixelSize(largeFontPaddingRes)
+        : defaultPadding;
   }
 
   void addIndicator(TextView indicator, @IndicatorIndex int index) {
@@ -384,7 +406,6 @@ final class IndicatorViewController {
     if (isCaptionView(index)) {
       captionArea.setVisibility(VISIBLE);
       captionArea.addView(indicator);
-      captionViewsAdded++;
     } else {
       LinearLayout.LayoutParams indicatorAreaLp =
           new LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
@@ -400,8 +421,6 @@ final class IndicatorViewController {
     }
 
     if (isCaptionView(index) && captionArea != null) {
-      captionViewsAdded--;
-      setViewGroupGoneIfEmpty(captionArea, captionViewsAdded);
       captionArea.removeView(indicator);
     } else {
       indicatorArea.removeView(indicator);

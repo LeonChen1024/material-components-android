@@ -18,18 +18,19 @@ package com.google.android.material.floatingactionbutton;
 
 import com.google.android.material.R;
 
+import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
+import static com.google.android.material.theme.overlay.MaterialThemeOverlay.wrap;
+import static java.lang.Math.min;
+
 import android.animation.Animator;
 import android.animation.Animator.AnimatorListener;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
 import android.animation.PropertyValuesHolder;
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.content.res.TypedArray;
 import android.graphics.Rect;
-import androidx.annotation.AnimatorRes;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.annotation.VisibleForTesting;
 import androidx.core.view.ViewCompat;
 import android.text.TextUtils;
 import android.util.AttributeSet;
@@ -38,6 +39,10 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewGroup.LayoutParams;
+import androidx.annotation.AnimatorRes;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import androidx.coordinatorlayout.widget.CoordinatorLayout.AttachedBehavior;
 import androidx.coordinatorlayout.widget.CoordinatorLayout.Behavior;
@@ -62,7 +67,7 @@ import java.util.List;
  * displayed via {@link #setIcon(android.graphics.drawable.Drawable)}, and the text via {@link
  * #setText(CharSequence)}.
  *
- * <p>The background color of this view defaults to the your theme's {@code colorPrimary}. If you
+ * <p>The background color of this view defaults to the your theme's {@code colorSecondary}. If you
  * wish to change this at runtime then you can do so via
  * {@link #setBackgroundTintList(android.content.res.ColorStateList)}.
  */
@@ -82,10 +87,19 @@ public class ExtendedFloatingActionButton extends MaterialButton implements Atta
   @NonNull private final MotionStrategy extendStrategy;
   private final MotionStrategy showStrategy = new ShowStrategy(changeVisibilityTracker);
   private final MotionStrategy hideStrategy = new HideStrategy(changeVisibilityTracker);
+  private final int collapsedSize;
+
+  private int extendedPaddingStart;
+  private int extendedPaddingEnd;
 
   @NonNull private final Behavior<ExtendedFloatingActionButton> behavior;
 
   private boolean isExtended = true;
+  private boolean isTransforming = false;
+  private boolean animateShowBeforeLayout = false;
+
+  @NonNull protected ColorStateList originalTextCsl;
+
 
   /**
    * Callback to be invoked when the visibility or the state of an ExtendedFloatingActionButton
@@ -135,10 +149,12 @@ public class ExtendedFloatingActionButton extends MaterialButton implements Atta
     this(context, attrs, R.attr.extendedFloatingActionButtonStyle);
   }
 
-  @SuppressWarnings("initialization")
+  @SuppressWarnings("nullness")
   public ExtendedFloatingActionButton(
       @NonNull Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
-    super(context, attrs, defStyleAttr);
+    super(wrap(context, attrs, defStyleAttr, DEF_STYLE_RES), attrs, defStyleAttr);
+    // Ensure we are using the correctly themed context rather than the context that was passed in.
+    context = getContext();
     behavior = new ExtendedFloatingActionButtonBehavior<>(context, attrs);
     TypedArray a =
         ThemeEnforcement.obtainStyledAttributes(
@@ -157,36 +173,76 @@ public class ExtendedFloatingActionButton extends MaterialButton implements Atta
         MotionSpec.createFromAttribute(
             context, a, R.styleable.ExtendedFloatingActionButton_shrinkMotionSpec);
 
+    collapsedSize =
+        a.getDimensionPixelSize(R.styleable.ExtendedFloatingActionButton_collapsedSize, -1);
+    extendedPaddingStart = ViewCompat.getPaddingStart(this);
+    extendedPaddingEnd = ViewCompat.getPaddingEnd(this);
+
     AnimatorTracker changeSizeTracker = new AnimatorTracker();
-    extendStrategy = new ChangeSizeStrategy(
-        changeSizeTracker,
-        new Size() {
-          @Override
-          public int getWidth() {
-            return getMeasuredWidth();
-          }
+    extendStrategy =
+        new ChangeSizeStrategy(
+            changeSizeTracker,
+            new Size() {
+              @Override
+              public int getWidth() {
+                return getMeasuredWidth()
+                    - getCollapsedPadding() * 2
+                    + extendedPaddingStart
+                    + extendedPaddingEnd;
+              }
 
-          @Override
-          public int getHeight() {
-            return getMeasuredHeight();
-          }
-        },
-        /* extending= */ true);
+              @Override
+              public int getHeight() {
+                return getMeasuredHeight();
+              }
 
-    shrinkStrategy = new ChangeSizeStrategy(
-        changeSizeTracker,
-        new Size() {
-          @Override
-          public int getWidth() {
-            return getCollapsedSize();
-          }
+              @Override
+              public int getPaddingStart() {
+                return extendedPaddingStart;
+              }
 
-          @Override
-          public int getHeight() {
-            return getCollapsedSize();
-          }
-        },
-        /* extending= */ false);
+              @Override
+              public int getPaddingEnd() {
+                return extendedPaddingEnd;
+              }
+
+              @Override
+              public LayoutParams getLayoutParams() {
+                return new LayoutParams(WRAP_CONTENT, WRAP_CONTENT);
+              }
+            },
+            /* extending= */ true);
+
+    shrinkStrategy =
+        new ChangeSizeStrategy(
+            changeSizeTracker,
+            new Size() {
+              @Override
+              public int getWidth() {
+                return getCollapsedSize();
+              }
+
+              @Override
+              public int getHeight() {
+                return getCollapsedSize();
+              }
+
+              @Override
+              public int getPaddingStart() {
+                return getCollapsedPadding();
+              }
+
+              @Override
+              public int getPaddingEnd() {
+                return getCollapsedPadding();
+              }
+
+              @Override
+              public LayoutParams getLayoutParams() {
+                return new LayoutParams(getWidth(), getHeight());
+              }
+            },
+            /* extending= */ false);
 
     showStrategy.setMotionSpec(showMotionSpec);
     hideStrategy.setMotionSpec(hideMotionSpec);
@@ -199,6 +255,31 @@ public class ExtendedFloatingActionButton extends MaterialButton implements Atta
             context, attrs, defStyleAttr, DEF_STYLE_RES, ShapeAppearanceModel.PILL
         ).build();
     setShapeAppearanceModel(shapeAppearanceModel);
+    saveOriginalTextCsl();
+  }
+
+  @Override
+  public void setTextColor(int color) {
+    super.setTextColor(color);
+    saveOriginalTextCsl();
+  }
+
+  @Override
+  public void setTextColor(@NonNull ColorStateList colors) {
+    super.setTextColor(colors);
+    saveOriginalTextCsl();
+  }
+
+  private void saveOriginalTextCsl() {
+    originalTextCsl = getTextColors();
+  }
+
+  /**
+   * Update the text color without affecting the original, client-set color.
+   */
+  protected void silentlyUpdateTextColor(@NonNull  ColorStateList csl) {
+    // Call super to avoid saving this silent update through extended FAB's setTextColor overrides.
+    super.setTextColor(csl);
   }
 
   @Override
@@ -236,6 +317,35 @@ public class ExtendedFloatingActionButton extends MaterialButton implements Atta
 
   public final boolean isExtended() {
     return isExtended;
+  }
+
+  /**
+   * Sets whether to enable animation for a call to show {@link #show} even if the view has not been
+   * laid out yet.
+   *
+   * <p>This may be set to {@code true} if the button is initially hidden but should animate when
+   * later shown. The default is {@code false}.
+   */
+  public void setAnimateShowBeforeLayout(boolean animateShowBeforeLayout) {
+    this.animateShowBeforeLayout = animateShowBeforeLayout;
+  }
+
+  @Override
+  public void setPaddingRelative(int start, int top, int end, int bottom) {
+    super.setPaddingRelative(start, top, end, bottom);
+    if (isExtended && !isTransforming) {
+      extendedPaddingStart = start;
+      extendedPaddingEnd = end;
+    }
+  }
+
+  @Override
+  public void setPadding(int left, int top, int right, int bottom) {
+    super.setPadding(left, top, right, bottom);
+    if (isExtended && !isTransforming) {
+      extendedPaddingStart = ViewCompat.getPaddingStart(this);
+      extendedPaddingEnd = ViewCompat.getPaddingEnd(this);
+    }
   }
 
   /**
@@ -353,7 +463,8 @@ public class ExtendedFloatingActionButton extends MaterialButton implements Atta
   /**
    * Shows the button.
    *
-   * <p>This method will animate the button show if the view has already been laid out.
+   * <p>This method will animate the button show if the view has already been laid out, or if {@link
+   * #setAnimateShowBeforeLayout} is {@code true}.
    */
   public void show() {
     performMotion(showStrategy, null);
@@ -362,7 +473,8 @@ public class ExtendedFloatingActionButton extends MaterialButton implements Atta
   /**
    * Shows the button.
    *
-   * <p>This method will animate the button show if the view has already been laid out.
+   * <p>This method will animate the button show if the view has already been laid out, or if {@link
+   * #setAnimateShowBeforeLayout} is {@code true}.
    *
    * @param callback the callback to notify when this view is shown
    */
@@ -585,7 +697,8 @@ public class ExtendedFloatingActionButton extends MaterialButton implements Atta
   }
 
   private boolean shouldAnimateVisibilityChange() {
-    return ViewCompat.isLaidOut(this) && !isInEditMode();
+    return (ViewCompat.isLaidOut(this) || (!isOrWillBeShown() && animateShowBeforeLayout))
+        && !isInEditMode();
   }
 
   /**
@@ -627,13 +740,64 @@ public class ExtendedFloatingActionButton extends MaterialButton implements Atta
       };
 
   /**
+   * A Property wrapper around the <code>paddingStart</code> functionality handled by the {@link
+   * ViewCompat#setPaddingRelative(View, int, int, int, int)}.
+   */
+  static final Property<View, Float> PADDING_START =
+      new Property<View, Float>(Float.class, "paddingStart") {
+        @Override
+        public void set(@NonNull View object, @NonNull Float value) {
+          ViewCompat.setPaddingRelative(
+              object,
+              value.intValue(),
+              object.getPaddingTop(),
+              ViewCompat.getPaddingEnd(object),
+              object.getPaddingBottom());
+        }
+
+        @NonNull
+        @Override
+        public Float get(@NonNull View object) {
+          return (float) ViewCompat.getPaddingStart(object);
+        }
+      };
+
+  /**
+   * A Property wrapper around the <code>paddingEnd</code> functionality handled by the {@link
+   * ViewCompat#setPaddingRelative(View, int, int, int, int)}.
+   */
+  static final Property<View, Float> PADDING_END =
+      new Property<View, Float>(Float.class, "paddingEnd") {
+        @Override
+        public void set(@NonNull View object, @NonNull Float value) {
+          ViewCompat.setPaddingRelative(
+              object,
+              ViewCompat.getPaddingStart(object),
+              object.getPaddingTop(),
+              value.intValue(),
+              object.getPaddingBottom());
+        }
+
+        @NonNull
+        @Override
+        public Float get(@NonNull View object) {
+          return (float) ViewCompat.getPaddingEnd(object);
+        }
+      };
+
+  /**
    * Shrink to the smaller value between paddingStart and paddingEnd, such that when shrunk the icon
    * will be centered.
    */
   @VisibleForTesting
   int getCollapsedSize() {
-    return Math.min(ViewCompat.getPaddingStart(this), ViewCompat.getPaddingEnd(this)) * 2
-        + getIconSize();
+    return collapsedSize < 0
+        ? min(ViewCompat.getPaddingStart(this), ViewCompat.getPaddingEnd(this)) * 2 + getIconSize()
+        : collapsedSize;
+  }
+
+  int getCollapsedPadding() {
+    return (getCollapsedSize() - getIconSize()) / 2;
   }
 
   /**
@@ -912,6 +1076,12 @@ public class ExtendedFloatingActionButton extends MaterialButton implements Atta
   interface Size {
     int getWidth();
     int getHeight();
+
+    int getPaddingStart();
+
+    int getPaddingEnd();
+
+    LayoutParams getLayoutParams();
   }
 
   class ChangeSizeStrategy extends BaseMotionStrategy {
@@ -933,12 +1103,14 @@ public class ExtendedFloatingActionButton extends MaterialButton implements Atta
         return;
       }
 
-      if (extending) {
-        measure(MeasureSpec.UNSPECIFIED, MeasureSpec.UNSPECIFIED);
-      }
-
-      layoutParams.width = size.getWidth();
-      layoutParams.height = size.getHeight();
+      layoutParams.width = size.getLayoutParams().width;
+      layoutParams.height = size.getLayoutParams().height;
+      ViewCompat.setPaddingRelative(
+          ExtendedFloatingActionButton.this,
+          size.getPaddingStart(),
+          getPaddingTop(),
+          size.getPaddingEnd(),
+          getPaddingBottom());
       requestLayout();
     }
 
@@ -957,7 +1129,9 @@ public class ExtendedFloatingActionButton extends MaterialButton implements Atta
 
     @Override
     public int getDefaultMotionSpecResource() {
-      return R.animator.mtrl_extended_fab_change_size_motion_spec;
+      return extending
+          ? R.animator.mtrl_extended_fab_change_size_expand_motion_spec
+          : R.animator.mtrl_extended_fab_change_size_collapse_motion_spec;
     }
 
     @NonNull
@@ -976,6 +1150,28 @@ public class ExtendedFloatingActionButton extends MaterialButton implements Atta
         spec.setPropertyValues("height", heightValues);
       }
 
+      if (spec.hasPropertyValues("paddingStart")) {
+        PropertyValuesHolder[] paddingValues = spec.getPropertyValues("paddingStart");
+        paddingValues[0].setFloatValues(
+            ViewCompat.getPaddingStart(ExtendedFloatingActionButton.this), size.getPaddingStart());
+        spec.setPropertyValues("paddingStart", paddingValues);
+      }
+
+      if (spec.hasPropertyValues("paddingEnd")) {
+        PropertyValuesHolder[] paddingValues = spec.getPropertyValues("paddingEnd");
+        paddingValues[0].setFloatValues(
+            ViewCompat.getPaddingEnd(ExtendedFloatingActionButton.this), size.getPaddingEnd());
+        spec.setPropertyValues("paddingEnd", paddingValues);
+      }
+
+      if (spec.hasPropertyValues("labelOpacity")) {
+        PropertyValuesHolder[] labelOpacityValues = spec.getPropertyValues("labelOpacity");
+        float startValue = extending ? 0F : 1F;
+        float endValue = extending ? 1F : 0F;
+        labelOpacityValues[0].setFloatValues(startValue, endValue);
+        spec.setPropertyValues("labelOpacity", labelOpacityValues);
+      }
+
       return super.createAnimator(spec);
     }
 
@@ -983,13 +1179,22 @@ public class ExtendedFloatingActionButton extends MaterialButton implements Atta
     public void onAnimationStart(Animator animator) {
       super.onAnimationStart(animator);
       isExtended = extending;
+      isTransforming = true;
       setHorizontallyScrolling(true);
     }
 
     @Override
     public void onAnimationEnd() {
       super.onAnimationEnd();
+      isTransforming = false;
       setHorizontallyScrolling(false);
+
+      LayoutParams layoutParams = getLayoutParams();
+      if (layoutParams == null) {
+        return;
+      }
+      layoutParams.width = size.getLayoutParams().width;
+      layoutParams.height = size.getLayoutParams().height;
     }
 
     @Override

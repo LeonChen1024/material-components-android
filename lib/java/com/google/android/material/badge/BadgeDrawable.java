@@ -33,6 +33,13 @@ import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.os.Parcel;
 import android.os.Parcelable;
+import androidx.core.view.ViewCompat;
+import android.util.AttributeSet;
+import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.FrameLayout;
+import android.widget.FrameLayout.LayoutParams;
 import androidx.annotation.AttrRes;
 import androidx.annotation.ColorInt;
 import androidx.annotation.Dimension;
@@ -45,12 +52,6 @@ import androidx.annotation.StringRes;
 import androidx.annotation.StyleRes;
 import androidx.annotation.StyleableRes;
 import androidx.annotation.XmlRes;
-import androidx.core.view.ViewCompat;
-import android.util.AttributeSet;
-import android.view.Gravity;
-import android.view.View;
-import android.view.ViewGroup;
-import android.widget.FrameLayout;
 import com.google.android.material.drawable.DrawableUtils;
 import com.google.android.material.internal.TextDrawableHelper;
 import com.google.android.material.internal.TextDrawableHelper.TextDrawableDelegate;
@@ -61,39 +62,56 @@ import com.google.android.material.shape.MaterialShapeDrawable;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.ref.WeakReference;
+import java.text.NumberFormat;
 
 /**
- * BadgeDrawable contains all the layout and draw logic for a badge.
+ * {@code BadgeDrawable} contains all the layout and draw logic for a badge.
  *
  * <p>You can use {@code BadgeDrawable} to display dynamic information such as a number of pending
  * requests in a {@link com.google.android.material.bottomnavigation.BottomNavigationView}. To
  * create an instance of {@code BadgeDrawable}, use {@link #create(Context)} or {@link
- * #createFromAttributes(Context, AttributeSet, int, int)}. How to add and display a {@code
- * BadgeDrawable} on top of its anchor view depends on the API level:
+ * #createFromResources(Context, int)}. How to add and display a {@code BadgeDrawable} on top of its
+ * anchor view depends on the API level:
  *
  * <p>For API 18+ (APIs supported by {@link android.view.ViewOverlay})
  *
  * <ul>
  *   <li>Add {@code BadgeDrawable} as a {@link android.view.ViewOverlay} to the desired anchor view
- *       using {@link BadgeUtils#attachBadgeDrawable(BadgeDrawable, View, FrameLayout)}.
+ *       using BadgeUtils#attachBadgeDrawable(BadgeDrawable, View, FrameLayout) (This helper class
+ *       is currently experimental).
  *   <li>Update the {@code BadgeDrawable BadgeDrawable's} coordinates (center and bounds) based on
- *       its anchor view using {@link #updateBadgeCoordinates(View, ViewGroup)}.
+ *       its anchor view using {@link #updateBadgeCoordinates(View, FrameLayout)}.
  * </ul>
  *
  * <pre>
  * BadgeDrawable badgeDrawable = BadgeDrawable.create(context);
- * BadgeUtils.attachBadgeDrawable(badgeDrawable, anchor, null);
+ * badgeDrawable.setVisible(true);
+ * BadgeUtils.attachBadgeDrawable(badgeDrawable, anchor);
  * </pre>
  *
  * <p>For Pre API-18
  *
  * <ul>
- *   <li>Set {@code BadgeDrawable} as the foreground of the anchor view's FrameLayout ancestor using
- *       {@link BadgeUtils#attachBadgeDrawable(BadgeDrawable, View, FrameLayout)}.
+ *   <li>Set {@code BadgeDrawable} as the foreground of the anchor view's {@code FrameLayout}
+ *       ancestor using {@link BadgeUtils#attachBadgeDrawable(BadgeDrawable, View, FrameLayout)}
+ *       (This helper class is currently experimental).
  *   <li>Update the {@code BadgeDrawable BadgeDrawable's} coordinates (center and bounds) based on
- *       its anchor view (relative to its FrameLayout ancestor's coordinate space), using {@link
- *       #updateBadgeCoordinates(View, ViewGroup)}.
+ *       its anchor view (relative to its {@code FrameLayout} ancestor's coordinate space), using
+ *       {@link #updateBadgeCoordinates(View, FrameLayout)}.
  * </ul>
+ *
+ * Option 1: {@code BadgeDrawable} will dynamically create and wrap the anchor view in a {@code
+ * FrameLayout}, then insert the {@code FrameLayout} into the anchor view original position in the
+ * view hierarchy. Same syntax as API 18+
+ *
+ * <pre>
+ * BadgeDrawable badgeDrawable = BadgeDrawable.create(context);
+ * badgeDrawable.setVisible(true);
+ * BadgeUtils.attachBadgeDrawable(badgeDrawable, anchor);
+ * </pre>
+ *
+ * Option 2: If you do not want {@code BadgeDrawable} to modify your view hierarchy, you can specify
+ * a {@code FrameLayout} to display the badge instead.
  *
  * <pre>
  * BadgeDrawable badgeDrawable = BadgeDrawable.create(context);
@@ -101,7 +119,9 @@ import java.lang.ref.WeakReference;
  * </pre>
  *
  * <p>By default, {@code BadgeDrawable} is aligned to the top and end edges of its anchor view (with
- * some offsets). Call #setBadgeGravity(int) to change it to one of the other supported modes.
+ * some offsets). Call {@link #setBadgeGravity(int)} to change it to one of the other supported
+ * modes. To adjust the badge's offsets w.r.t. the anchor's center, use {@link
+ * BadgeDrawable#setHoriziontalOffset(int)}, {@link BadgeDrawable#setVerticalOffset(int)}
  *
  * <p>Note: This is still under development and may not support the full range of customization
  * Material Android components generally support (e.g. themed attributes).
@@ -132,7 +152,7 @@ public class BadgeDrawable extends Drawable implements TextDrawableDelegate {
 
   /**
    * Maximum number of characters a badge supports displaying by default. It could be changed using
-   * BadgeDrawable#setMaxBadgeCount.
+   * {@link BadgeDrawable#setMaxBadgeCount(int)}.
    */
   private static final int DEFAULT_MAX_BADGE_CHARACTER_COUNT = 4;
 
@@ -169,10 +189,10 @@ public class BadgeDrawable extends Drawable implements TextDrawableDelegate {
 
   // Need to keep a local reference in order to support updating badge gravity.
   @Nullable private WeakReference<View> anchorViewRef;
-  @Nullable private WeakReference<ViewGroup> customBadgeParentRef;
+  @Nullable private WeakReference<FrameLayout> customBadgeParentRef;
 
   /**
-   * A {@link Parcelable} implementation used to ensure the state of BadgeDrawable is saved.
+   * A {@link Parcelable} implementation used to ensure the state of {@code BadgeDrawable} is saved.
    *
    * @hide
    */
@@ -186,7 +206,9 @@ public class BadgeDrawable extends Drawable implements TextDrawableDelegate {
     private int maxCharacterCount;
     @Nullable private CharSequence contentDescriptionNumberless;
     @PluralsRes private int contentDescriptionQuantityStrings;
+    @StringRes private int contentDescriptionExceedsMaxBadgeNumberRes;
     @BadgeGravity private int badgeGravity;
+    private boolean isVisible;
 
     @Dimension(unit = Dimension.PX)
     private int horizontalOffset;
@@ -203,6 +225,9 @@ public class BadgeDrawable extends Drawable implements TextDrawableDelegate {
       contentDescriptionNumberless =
           context.getString(R.string.mtrl_badge_numberless_content_description);
       contentDescriptionQuantityStrings = R.plurals.mtrl_badge_content_description;
+      contentDescriptionExceedsMaxBadgeNumberRes =
+          R.string.mtrl_exceed_max_badge_number_content_description;
+      isVisible = true;
     }
 
     protected SavedState(@NonNull Parcel in) {
@@ -216,6 +241,7 @@ public class BadgeDrawable extends Drawable implements TextDrawableDelegate {
       badgeGravity = in.readInt();
       horizontalOffset = in.readInt();
       verticalOffset = in.readInt();
+      isVisible = in.readInt() != 0;
     }
 
     public static final Creator<SavedState> CREATOR =
@@ -250,6 +276,7 @@ public class BadgeDrawable extends Drawable implements TextDrawableDelegate {
       dest.writeInt(badgeGravity);
       dest.writeInt(horizontalOffset);
       dest.writeInt(verticalOffset);
+      dest.writeInt(isVisible ? 1 : 0);
     }
   }
 
@@ -258,7 +285,7 @@ public class BadgeDrawable extends Drawable implements TextDrawableDelegate {
     return savedState;
   }
 
-  /** Creates an instance of BadgeDrawable with the provided {@link SavedState}. */
+  /** Creates an instance of {@code BadgeDrawable} with the provided {@link SavedState}. */
   @NonNull
   static BadgeDrawable createFromSavedState(
       @NonNull Context context, @NonNull SavedState savedState) {
@@ -267,14 +294,14 @@ public class BadgeDrawable extends Drawable implements TextDrawableDelegate {
     return badge;
   }
 
-  /** Creates an instance of BadgeDrawable with default values. */
+  /** Creates an instance of {@code BadgeDrawable} with default values. */
   @NonNull
   public static BadgeDrawable create(@NonNull Context context) {
     return createFromAttributes(context, /* attrs= */ null, DEFAULT_THEME_ATTR, DEFAULT_STYLE);
   }
 
   /**
-   * Returns a BadgeDrawable from the given XML resource. All attributes from {@link
+   * Returns a {@code BadgeDrawable} from the given XML resource. All attributes from {@link
    * R.styleable#Badge} and a custom <code>style</code> attribute are supported. A badge resource
    * may look like:
    *
@@ -295,7 +322,7 @@ public class BadgeDrawable extends Drawable implements TextDrawableDelegate {
     return createFromAttributes(context, attrs, DEFAULT_THEME_ATTR, style);
   }
 
-  /** Returns a BadgeDrawable from the given attributes. */
+  /** Returns a {@code BadgeDrawable} from the given attributes. */
   @NonNull
   private static BadgeDrawable createFromAttributes(
       @NonNull Context context,
@@ -313,6 +340,12 @@ public class BadgeDrawable extends Drawable implements TextDrawableDelegate {
    */
   public void setVisible(boolean visible) {
     setVisible(visible, /* restart= */ false);
+    savedState.isVisible = visible;
+    // When hiding a badge in pre-API 18, invalidate the custom parent in order to trigger a draw
+    // pass to remove this badge from its foreground.
+    if (BadgeUtils.USE_COMPAT_PARENT && getCustomBadgeParent() != null && !visible) {
+      ((ViewGroup) getCustomBadgeParent().getParent()).invalidate();
+    }
   }
 
   private void restoreFromSavedState(@NonNull SavedState savedState) {
@@ -335,6 +368,7 @@ public class BadgeDrawable extends Drawable implements TextDrawableDelegate {
 
     setHorizontalOffset(savedState.horizontalOffset);
     setVerticalOffset(savedState.verticalOffset);
+    setVisible(savedState.isVisible);
   }
 
   private void loadDefaultStateFromAttributes(
@@ -393,20 +427,122 @@ public class BadgeDrawable extends Drawable implements TextDrawableDelegate {
 
   /**
    * Calculates and updates this badge's center coordinates based on its anchor's bounds. Internally
-   * also updates this BadgeDrawable's bounds, because they are dependent on the center coordinates.
-   * For pre API-18, coordinates will be calculated relative to {@code customBadgeParent} because
-   * the BadgeDrawable will be set as the parent's foreground.
+   * also updates this {@code BadgeDrawable BadgeDrawable's} bounds, because they are dependent on
+   * the center coordinates. For pre API-18, coordinates will be calculated relative to {@code
+   * customBadgeParent} because the {@code BadgeDrawable} will be set as the parent's foreground.
    *
    * @param anchorView This badge's anchor.
-   * @param customBadgeParent An optional parent view that will set this BadgeDrawable as its
-   *     foreground.
+   * @param customBadgeParent An optional parent view that will set this {@code BadgeDrawable} as
+   *     its foreground.
+   * @deprecated use {@link BadgeDrawable#updateBadgeCoordinates(View, FrameLayout)} instead.
    */
+  @Deprecated
   public void updateBadgeCoordinates(
       @NonNull View anchorView, @Nullable ViewGroup customBadgeParent) {
+    if (customBadgeParent instanceof FrameLayout == false) {
+      throw new IllegalArgumentException("customBadgeParent must be a FrameLayout");
+    }
+    updateBadgeCoordinates(anchorView, (FrameLayout) customBadgeParent);
+  }
+
+  /**
+   * Calculates and updates this badge's center coordinates based on its anchor's bounds. Internally
+   * also updates this {@code BadgeDrawable BadgeDrawable's} bounds, because they are dependent on
+   * the center coordinates.
+   *
+   * <p>For pre API-18, optionally wrap the anchor in a {@code FrameLayout} (if it's not done
+   * already) that will be inserted into the anchor's view hierarchy and calculate the badge's
+   * coordinates the parent {@code FrameLayout} because the {@code BadgeDrawable} will be set as the
+   * parent's foreground.
+   *
+   * @param anchorView This badge's anchor.
+   */
+  public void updateBadgeCoordinates(@NonNull View anchorView) {
+    updateBadgeCoordinates(anchorView, null);
+  }
+
+  /**
+   * Calculates and updates this badge's center coordinates based on its anchor's bounds. Internally
+   * also updates this {@code BadgeDrawable BadgeDrawable's} bounds, because they are dependent on
+   * the center coordinates.
+   *
+   * <p>For pre API-18, if no {@code customBadgeParent} is specified, optionally wrap the anchor in
+   * a {@code FrameLayout} (if it's not done already) that will be inserted into the anchor's view
+   * hierarchy and calculate the badge's coordinates the parent {@code FrameLayout} because the
+   * {@code BadgeDrawable} will be set as the parent's foreground.
+   *
+   * @param anchorView This badge's anchor.
+   * @param customBadgeParent An optional parent view that will set this {@code BadgeDrawable} as
+   *     its foreground.
+   */
+  public void updateBadgeCoordinates(
+      @NonNull View anchorView, @Nullable FrameLayout customBadgeParent) {
     this.anchorViewRef = new WeakReference<>(anchorView);
-    this.customBadgeParentRef = new WeakReference<>(customBadgeParent);
+
+    if (BadgeUtils.USE_COMPAT_PARENT && customBadgeParent == null) {
+      tryWrapAnchorInCompatParent(anchorView);
+    } else {
+      this.customBadgeParentRef = new WeakReference<>(customBadgeParent);
+    }
+    if (!BadgeUtils.USE_COMPAT_PARENT) {
+      updateAnchorParentToNotClip(anchorView);
+    }
     updateCenterAndBounds();
     invalidateSelf();
+  }
+
+  /** Returns a {@link FrameLayout} that will set this {@code BadgeDrawable} as its foreground. */
+  @Nullable
+  public FrameLayout getCustomBadgeParent() {
+    return customBadgeParentRef != null ? customBadgeParentRef.get() : null;
+  }
+
+  /**
+   * ViewOverlay is not supported below api 18, wrap the anchor view in a {@code FrameLayout} in
+   * order to support scrolling.
+   */
+  private void tryWrapAnchorInCompatParent(final View anchorView) {
+    ViewGroup anchorViewParent = (ViewGroup) anchorView.getParent();
+    if ((anchorViewParent != null && anchorViewParent.getId() == R.id.mtrl_anchor_parent)
+        || (customBadgeParentRef != null && customBadgeParentRef.get() == anchorViewParent)) {
+      return;
+    }
+    // Must call this before wrapping the anchor in a FrameLayout.
+    updateAnchorParentToNotClip(anchorView);
+
+    // Create FrameLayout and configure it to wrap the anchor.
+    final FrameLayout frameLayout = new FrameLayout(anchorView.getContext());
+    frameLayout.setId(R.id.mtrl_anchor_parent);
+    frameLayout.setClipChildren(false);
+    frameLayout.setClipToPadding(false);
+    frameLayout.setLayoutParams(anchorView.getLayoutParams());
+    frameLayout.setMinimumWidth(anchorView.getWidth());
+    frameLayout.setMinimumHeight(anchorView.getHeight());
+
+    int anchorIndex = anchorViewParent.indexOfChild(anchorView);
+    anchorViewParent.removeViewAt(anchorIndex);
+    anchorView.setLayoutParams(
+        new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+    frameLayout.addView(anchorView);
+    anchorViewParent.addView(frameLayout, anchorIndex);
+    customBadgeParentRef = new WeakReference<>(frameLayout);
+
+    // Update the badge's coordinates after the FrameLayout has been added to the view hierarchy and
+    // has a size.
+    frameLayout.post(
+        new Runnable() {
+          @Override
+          public void run() {
+            updateBadgeCoordinates(anchorView, frameLayout);
+          }
+        });
+  }
+
+  private static void updateAnchorParentToNotClip(View anchorView) {
+    ViewGroup anchorViewParent = (ViewGroup) anchorView.getParent();
+    anchorViewParent.setClipChildren(false);
+    anchorViewParent.setClipToPadding(false);
   }
 
   /**
@@ -622,8 +758,13 @@ public class BadgeDrawable extends Drawable implements TextDrawableDelegate {
     savedState.contentDescriptionNumberless = charSequence;
   }
 
-  public void setContentDescriptionQuantityStringsResource(@StringRes int stringsResource) {
+  public void setContentDescriptionQuantityStringsResource(@PluralsRes int stringsResource) {
     savedState.contentDescriptionQuantityStrings = stringsResource;
+  }
+
+  public void setContentDescriptionExceedsMaxBadgeNumberStringResource(
+      @StringRes int stringsResource) {
+    savedState.contentDescriptionExceedsMaxBadgeNumberRes = stringsResource;
   }
 
   @Nullable
@@ -637,10 +778,15 @@ public class BadgeDrawable extends Drawable implements TextDrawableDelegate {
         if (context == null) {
           return null;
         }
-        return context
-            .getResources()
-            .getQuantityString(
-                savedState.contentDescriptionQuantityStrings, getNumber(), getNumber());
+        if (getNumber() <= maxBadgeNumber) {
+          return context
+              .getResources()
+              .getQuantityString(
+                  savedState.contentDescriptionQuantityStrings, getNumber(), getNumber());
+        } else {
+          return context.getString(
+              savedState.contentDescriptionExceedsMaxBadgeNumberRes, maxBadgeNumber);
+        }
       } else {
         return null;
       }
@@ -803,7 +949,7 @@ public class BadgeDrawable extends Drawable implements TextDrawableDelegate {
   private String getBadgeText() {
     // If number exceeds max count, show badgeMaxCount+ instead of the number.
     if (getNumber() <= maxBadgeNumber) {
-      return Integer.toString(getNumber());
+      return NumberFormat.getInstance().format(getNumber());
     } else {
       Context context = contextRef.get();
       if (context == null) {

@@ -33,16 +33,19 @@ import io.material.catalog.fab.FabFragment;
 import io.material.catalog.font.FontFragment;
 import io.material.catalog.imageview.ShapeableImageViewFragment;
 import io.material.catalog.menu.MenuFragment;
+import io.material.catalog.progressindicator.ProgressIndicatorFragment;
 import io.material.catalog.radiobutton.RadioButtonFragment;
 import io.material.catalog.shapetheming.ShapeThemingFragment;
 import io.material.catalog.slider.SliderFragment;
 import io.material.catalog.switchmaterial.SwitchFragment;
 import io.material.catalog.tabs.TabsFragment;
 import io.material.catalog.textfield.TextFieldFragment;
+import io.material.catalog.themeswitcher.ThemeAttributeValuesCreator;
 import io.material.catalog.themeswitcher.ThemeSwitcherDialogFragment;
 import io.material.catalog.themeswitcher.ThemeSwitcherResourceProvider;
+import io.material.catalog.timepicker.TimePickerDemoLandingFragment;
 import io.material.catalog.topappbar.TopAppBarFragment;
-import io.material.catalog.transformation.TransformationFragment;
+import io.material.catalog.transition.TransitionFragment;
 
 /** The Dagger module for {@link TocFragment} dependencies. */
 @dagger.Module(
@@ -54,12 +57,13 @@ import io.material.catalog.transformation.TransformationFragment;
       CardFragment.Module.class,
       CheckBoxFragment.Module.class,
       ChipFragment.Module.class,
+      DatePickerDemoLandingFragment.Module.class,
       DialogDemoLandingFragment.Module.class,
       ElevationFragment.Module.class,
       FabFragment.Module.class,
       FontFragment.Module.class,
       MenuFragment.Module.class,
-      DatePickerDemoLandingFragment.Module.class,
+      ProgressIndicatorFragment.Module.class,
       RadioButtonFragment.Module.class,
       ShapeableImageViewFragment.Module.class,
       ShapeThemingFragment.Module.class,
@@ -67,8 +71,9 @@ import io.material.catalog.transformation.TransformationFragment;
       SwitchFragment.Module.class,
       TabsFragment.Module.class,
       TextFieldFragment.Module.class,
+      TimePickerDemoLandingFragment.Module.class,
       TopAppBarFragment.Module.class,
-      TransformationFragment.Module.class,
+      TransitionFragment.Module.class
     })
 public abstract class TocModule {
   @FragmentScope
@@ -87,5 +92,10 @@ public abstract class TocModule {
   @Provides
   static ThemeSwitcherResourceProvider provideThemeSwitcherResourceProvider() {
     return new ThemeSwitcherResourceProvider();
+  }
+
+  @Provides
+  static ThemeAttributeValuesCreator provideThemeAttributeValuesCreator() {
+    return new ThemeAttributeValuesCreator();
   }
 }

@@ -18,14 +18,16 @@ package com.google.android.material.datepicker;
 import com.google.android.material.R;
 
 import android.content.Context;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.TextView;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import java.util.Calendar;
+import java.util.Collection;
+import java.util.Locale;
 
 /**
  * Represents the days of a month with {@link TextView} instances for each day.
@@ -46,6 +48,8 @@ class MonthAdapter extends BaseAdapter {
    */
   final DateSelector<?> dateSelector;
 
+  private Collection<Long> previouslySelectedDates;
+
   CalendarStyle calendarStyle;
   final CalendarConstraints calendarConstraints;
 
@@ -53,6 +57,7 @@ class MonthAdapter extends BaseAdapter {
     this.month = month;
     this.dateSelector = dateSelector;
     this.calendarConstraints = calendarConstraints;
+    this.previouslySelectedDates = dateSelector.getSelectedDays();
   }
 
   @Override
@@ -112,9 +117,10 @@ class MonthAdapter extends BaseAdapter {
       int dayNumber = offsetPosition + 1;
       // The tag and text uniquely identify the view within the MaterialCalendar for testing
       day.setTag(month);
-      day.setText(String.valueOf(dayNumber));
+      Locale locale = day.getResources().getConfiguration().locale;
+      day.setText(String.format(locale, "%d", dayNumber));
       long dayInMillis = month.getDay(dayNumber);
-      if (month.year == Month.today().year) {
+      if (month.year == Month.current().year) {
         day.setContentDescription(DateStrings.getMonthDayOfWeekDay(dayInMillis));
       } else {
         day.setContentDescription(DateStrings.getYearMonthDayOfWeekDay(dayInMillis));
@@ -127,27 +133,66 @@ class MonthAdapter extends BaseAdapter {
     if (date == null) {
       return day;
     }
+    updateSelectedState(day, date);
+    return day;
+  }
+
+  public void updateSelectedStates(MaterialCalendarGridView monthGrid) {
+    // Update previously selected dates.
+    for (Long date : previouslySelectedDates) {
+      updateSelectedStateForDate(monthGrid, date);
+    }
+
+    // Update currently selected dates.
+    if (dateSelector != null) {
+      for (Long date : dateSelector.getSelectedDays()) {
+        updateSelectedStateForDate(monthGrid, date);
+      }
+      // Update the list of previously selected dates.
+      previouslySelectedDates = dateSelector.getSelectedDays();
+    }
+  }
+
+  private void updateSelectedStateForDate(MaterialCalendarGridView monthGrid, long date) {
+    if (Month.create(date).equals(month)) {
+      // Validate that the day is in the right month.
+      int day = month.getDayOfMonth(date);
+      updateSelectedState(
+          (TextView)
+              monthGrid.getChildAt(
+                  monthGrid.getAdapter().dayToPosition(day) - monthGrid.getFirstVisiblePosition()),
+          date);
+    }
+  }
+
+  private void updateSelectedState(@Nullable TextView day, long date) {
+    if (day == null) {
+      return;
+    }
+    final CalendarItemStyle style;
     if (calendarConstraints.getDateValidator().isValid(date)) {
       day.setEnabled(true);
-      for (long selectedDay : dateSelector.getSelectedDays()) {
-        if (UtcDates.canonicalYearMonthDay(date) == UtcDates.canonicalYearMonthDay(selectedDay)) {
-          calendarStyle.selectedDay.styleItem(day);
-          return day;
-        }
-      }
-
-      if (UtcDates.getTodayCalendar().getTimeInMillis() == date) {
-        calendarStyle.todayDay.styleItem(day);
-        return day;
+      if (isSelected(date)) {
+        style = calendarStyle.selectedDay;
+      } else if (UtcDates.getTodayCalendar().getTimeInMillis() == date) {
+        style = calendarStyle.todayDay;
       } else {
-        calendarStyle.day.styleItem(day);
-        return day;
+        style = calendarStyle.day;
       }
     } else {
       day.setEnabled(false);
-      calendarStyle.invalidDay.styleItem(day);
-      return day;
+      style = calendarStyle.invalidDay;
     }
+    style.styleItem(day);
+  }
+
+  private boolean isSelected(long date) {
+    for (long selectedDay : dateSelector.getSelectedDays()) {
+      if (UtcDates.canonicalYearMonthDay(date) == UtcDates.canonicalYearMonthDay(selectedDay)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private void initializeStyles(Context context) {
